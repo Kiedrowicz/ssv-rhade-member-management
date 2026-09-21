@@ -12,10 +12,50 @@
 -- CLAUDE.md, Abschnitt "Gemeinsame Mitglieder-Datenbank". Die Datenbank
 -- ssv_shared_members selbst wird NICHT hier angelegt (das macht
 -- travel-expenses), muss beim ersten Start dieser App also bereits
--- existieren.
+-- existieren. Diese Datei erweitert ssv_shared_members aber zusaetzlich um
+-- die Team-Baumstruktur (ALTER TABLE teams) und player_teams - siehe
+-- CLAUDE.md, Abschnitt "Abteilungen/Teams-Baumstruktur".
 
 CREATE DATABASE IF NOT EXISTS ssv_member_management
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Abteilungen/Teams als rekursive Baumstruktur (beliebige Tiefe, z.B.
+-- Fussball -> Jugend -> F1, oder Indoor -> Badminton -> Erwachsene). Rein
+-- additive Erweiterung von ssv_shared_members.teams (angelegt von
+-- travel-expenses) - bestehende Zeilen/Spalten bleiben unveraendert,
+-- travel-expenses' Queries funktionieren unveraendert weiter, siehe
+-- CLAUDE.md, Abschnitt "Abteilungen/Teams-Baumstruktur". parent_id IS NULL
+-- = Abteilung (oberste Ebene), sonst Team/Untergruppe. "ADD CONSTRAINT IF
+-- NOT EXISTS ... FOREIGN KEY" ist in MariaDB 10.11 kein gueltiges Syntax
+-- fuer Fremdschluessel (nur ohne CONSTRAINT-Keyword) - gegen die laufende
+-- Dev-DB verifiziert (inkl. Wiederholbarkeit).
+ALTER TABLE ssv_shared_members.teams
+  ADD COLUMN IF NOT EXISTS parent_id INT UNSIGNED DEFAULT NULL,
+  ADD INDEX IF NOT EXISTS idx_parent (parent_id);
+ALTER TABLE ssv_shared_members.teams
+  ADD FOREIGN KEY IF NOT EXISTS fk_teams_parent (parent_id)
+    REFERENCES ssv_shared_members.teams(id) ON DELETE CASCADE;
+
+-- Team-/Abteilungs-Mitgliedschaft (n:m - eine Person kann gleichzeitig in
+-- mehreren Teams/Abteilungen sein, z.B. Fussball UND Tischtennis). Liegt
+-- bewusst in ssv_shared_members (nicht hier), analog zu players/teams
+-- selbst - siehe CLAUDE.md. players.team_id (die alte Einzel-Spalte, von
+-- travel-expenses genutzt) bleibt davon unberuehrt und wird von dieser App
+-- nicht mehr gepflegt.
+CREATE TABLE IF NOT EXISTS ssv_shared_members.player_teams (
+  player_id  INT UNSIGNED NOT NULL,
+  team_id    INT UNSIGNED NOT NULL,
+  joined_at  DATE DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (player_id, team_id),
+  INDEX idx_team (team_id),
+  CONSTRAINT fk_player_teams_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_player_teams_team
+    FOREIGN KEY (team_id) REFERENCES ssv_shared_members.teams(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Beitragsklassen (z.B. Erwachsene, Jugend, Familie, Ehrenmitglied).
 CREATE TABLE IF NOT EXISTS ssv_member_management.membership_types (

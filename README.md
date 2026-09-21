@@ -43,10 +43,12 @@ zufälliges Passwort werden einmalig in die Konsole geloggt. Danach unter
 <http://localhost:3000> erreichbar.
 
 Beitragsklassen-Startdaten (Erwachsene, Jugend, Familie, Ehrenmitglied)
+sowie die 5 Abteilungen (Outdoor, Indoor, Fußball, Tanzen, Tischtennis)
 optional einmalig einspielen:
 ```
-mysql -h 127.0.0.1 -P 3308 -u ssv_members -p ssv_member_management < db/01-seed-data.sql
+mysql -h 127.0.0.1 -P 3308 -u ssv_members -p < db/01-seed-data.sql
 ```
+(`INSERT IGNORE`, also gefahrlos mehrfach ausführbar.)
 
 ## Produktion
 
@@ -64,6 +66,9 @@ VPS soll (siehe CLAUDE.md).
 - Mitglieder anlegen/bearbeiten (Stammdaten landen in
   `ssv_shared_members.players`, direkt sichtbar auch für travel-expenses)
 - Mitgliedschaftsstatus, Ein-/Austrittsdatum, Mitgliedsnummer
+- Abteilungen/Teams als beliebig tiefe Baumstruktur verwalten (z.B.
+  Fußball → Jugend → F1), Mitglieder können gleichzeitig mehreren
+  Teams/Abteilungen angehören
 - Beitragsklassen verwalten
 - Ämter/Funktionen je Mitglied
 - Erziehungsberechtigte für minderjährige Mitglieder

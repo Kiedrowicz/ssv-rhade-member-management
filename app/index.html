@@ -83,6 +83,14 @@
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
 
+  .team-picker { border: 1px solid #d7d7dc; border-radius: 8px; padding: 8px 10px; max-height: 260px; overflow-y: auto; background: #fff; }
+  .team-picker label { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 0.85rem; color: #1a1a1a; padding: 6px 0; margin: 0; }
+  .team-picker input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+  .team-node { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f2; }
+  .team-node:last-child { border-bottom: none; }
+  .team-node .name { font-weight: 600; }
+  .team-node.depth-0 .name { font-weight: 700; color: #7D1A1A; }
+  .team-node-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .subsection { border-top: 1px solid #eee; margin-top: 16px; padding-top: 16px; }
   .subsection h3 { font-size: 0.85rem; margin-bottom: 10px; }
   .list-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f2; }
@@ -118,6 +126,7 @@
 
   <nav class="tabs">
     <button id="tabBtnMembers" class="active" onclick="showTab('members')">Mitglieder</button>
+    <button id="tabBtnDepartments" onclick="showTab('departments')">Abteilungen</button>
     <button id="tabBtnTypes" onclick="showTab('types')">Beitragsklassen</button>
   </nav>
 
@@ -158,7 +167,6 @@
         <h2 id="memberFormTitle">Neues Mitglied</h2>
         <div class="grid2">
           <div class="field"><label>Anrede</label><input id="mSalutation"></div>
-          <div class="field"><label>Team</label><select id="mTeam"><option value="">–</option></select></div>
           <div class="field"><label>Vorname *</label><input id="mFirstName"></div>
           <div class="field"><label>Nachname *</label><input id="mLastName"></div>
           <div class="field"><label>Straße</label><input id="mStreet"></div>
@@ -180,6 +188,10 @@
           <div class="field"><label>Eintrittsdatum</label><input id="mJoinedAt" type="date"></div>
           <div class="field"><label>Austrittsdatum</label><input id="mLeftAt" type="date"></div>
         </div>
+        <div class="field">
+          <label>Abteilungen/Teams (Mehrfachauswahl möglich)</label>
+          <div id="mTeamsPicker" class="team-picker"></div>
+        </div>
         <div class="field"><label>Notizen</label><textarea id="mNotes" rows="2"></textarea></div>
         <button class="primary" onclick="saveMember()">Speichern</button>
         <div id="memberError" class="error"></div>
@@ -198,6 +210,18 @@
           <div class="toolbar"><h2 style="margin:0">Beitragsfälligkeiten</h2><button onclick="addFee()">+ Fälligkeit</button></div>
           <div id="feesList"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ── Abteilungen/Teams ────────────────────────────────────────── -->
+    <section id="tabDepartments" hidden>
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0">Abteilungen &amp; Teams</h2>
+          <button class="primary" onclick="addTeamNode(null)">+ Abteilung</button>
+        </div>
+        <p class="muted" style="margin-bottom:10px">Abteilungen sind die oberste Ebene (z.B. Fußball, Indoor). Darunter beliebig tief verschachtelte Teams/Untergruppen (z.B. Fußball → Jugend → F1).</p>
+        <div id="teamsTree"></div>
       </div>
     </section>
 
@@ -286,11 +310,39 @@ async function showChangePassword() {
 function showTab(tab) {
   document.getElementById('tabMembers').hidden = tab !== 'members';
   document.getElementById('tabMemberDetail').hidden = tab !== 'memberDetail';
+  document.getElementById('tabDepartments').hidden = tab !== 'departments';
   document.getElementById('tabTypes').hidden = tab !== 'types';
   document.getElementById('tabBtnMembers').classList.toggle('active', tab === 'members');
+  document.getElementById('tabBtnDepartments').classList.toggle('active', tab === 'departments');
   document.getElementById('tabBtnTypes').classList.toggle('active', tab === 'types');
   if (tab === 'members') loadMembers();
+  if (tab === 'departments') loadDepartments();
   if (tab === 'types') loadTypes();
+}
+
+// ── Team-Baum: Hilfsfunktionen ────────────────────────────────────────
+// Baut aus der flachen Teams-Liste einen Baum (Kinder je Knoten).
+function buildTeamChildren(list) {
+  const byParent = new Map();
+  for (const t of list) {
+    const key = t.parent_id || 0;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(t);
+  }
+  for (const arr of byParent.values()) arr.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  return byParent;
+}
+// Liefert [{ ...team, depth }] in Baum-Reihenfolge (Tiefensuche).
+function flattenTeamTree(list) {
+  const byParent = buildTeamChildren(list);
+  const out = [];
+  (function walk(parentId, depth) {
+    for (const t of (byParent.get(parentId) || [])) {
+      out.push({ ...t, depth });
+      walk(t.id, depth + 1);
+    }
+  })(0, 0);
+  return out;
 }
 
 function debouncedLoadMembers() {
@@ -301,9 +353,9 @@ function debouncedLoadMembers() {
 async function loadLookups() {
   teams = await api('teams');
   membershipTypes = await api('membership-types');
-  const teamOpts = teams.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  const teamOpts = flattenTeamTree(teams.filter(t => t.active))
+    .map(t => `<option value="${t.id}">${'  '.repeat(t.depth)}${escapeHtml(t.name)}</option>`).join('');
   document.getElementById('filterTeam').innerHTML = '<option value="">Alle Teams</option>' + teamOpts;
-  document.getElementById('mTeam').innerHTML = '<option value="">–</option>' + teamOpts;
   const typeOpts = membershipTypes.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   document.getElementById('mMembershipType').innerHTML = '<option value="">–</option>' + typeOpts;
 }
@@ -316,7 +368,7 @@ async function loadMembers() {
   document.getElementById('membersBody').innerHTML = rows.map(r => `
     <tr class="clickable" onclick="openMemberForm(${r.player_id})">
       <td>${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)}</td>
-      <td>${escapeHtml(r.team_name || '–')}</td>
+      <td>${escapeHtml(r.team_names || '–')}</td>
       <td>${escapeHtml(r.membership_type_name || '–')}</td>
       <td>${escapeHtml(r.membership_number || '–')}</td>
       <td>${r.status ? `<span class="badge ${r.status}">${statusLabel(r.status)}</span>` : '<span class="muted">kein Mitglied</span>'}</td>
@@ -334,16 +386,17 @@ async function openMemberForm(playerId) {
   document.getElementById('memberFormTitle').textContent = playerId ? 'Mitglied bearbeiten' : 'Neues Mitglied';
   document.getElementById('detailSections').hidden = !playerId;
 
-  for (const id of ['mSalutation','mTeam','mFirstName','mLastName','mStreet','mHouseNumber','mPostalCode','mCity',
+  for (const id of ['mSalutation','mFirstName','mLastName','mStreet','mHouseNumber','mPostalCode','mCity',
     'mEmail','mPhone','mBirthDate','mMembershipNumber','mMembershipType','mJoinedAt','mLeftAt','mNotes']) {
     document.getElementById(id).value = '';
   }
   document.getElementById('mStatus').value = 'ACTIVE';
+  renderTeamPicker([]);
 
   if (playerId) {
     const m = await api('member', { body: { playerId } });
     document.getElementById('mSalutation').value = m.salutation || '';
-    document.getElementById('mTeam').value = m.team_id || '';
+    renderTeamPicker(m.teams.map(t => t.id));
     document.getElementById('mFirstName').value = m.first_name || '';
     document.getElementById('mLastName').value = m.last_name || '';
     document.getElementById('mStreet').value = m.street || '';
@@ -370,11 +423,26 @@ async function openMemberForm(playerId) {
   document.getElementById('tabMemberDetail').hidden = false;
 }
 
+// Checkbox-Liste statt <select multiple> - auf Touch-Geraeten deutlich
+// besser bedienbar (siehe Mobile-Test-Erkenntnisse).
+function renderTeamPicker(selectedIds) {
+  const selected = new Set(selectedIds.map(Number));
+  document.getElementById('mTeamsPicker').innerHTML = flattenTeamTree(teams).map(t => `
+    <label style="padding-left:${t.depth * 18}px">
+      <input type="checkbox" value="${t.id}" ${selected.has(t.id) ? 'checked' : ''}>
+      ${escapeHtml(t.name)}
+    </label>
+  `).join('') || '<span class="muted">Noch keine Abteilungen angelegt.</span>';
+}
+function getSelectedTeamIds() {
+  return [...document.querySelectorAll('#mTeamsPicker input[type="checkbox"]:checked')].map(el => Number(el.value));
+}
+
 async function saveMember() {
   const body = {
     playerId: currentPlayerId || undefined,
     salutation: document.getElementById('mSalutation').value.trim(),
-    teamId: document.getElementById('mTeam').value || undefined,
+    teamIds: getSelectedTeamIds(),
     firstName: document.getElementById('mFirstName').value.trim(),
     lastName: document.getElementById('mLastName').value.trim(),
     street: document.getElementById('mStreet').value.trim(),
@@ -488,6 +556,43 @@ async function deleteFee(id) {
   if (!confirm('Fälligkeit wirklich löschen?')) return;
   await api('fee-delete', { method: 'POST', body: { id } });
   await openMemberForm(currentPlayerId);
+}
+
+// ── Abteilungen/Teams ─────────────────────────────────────────────────
+async function loadDepartments() {
+  teams = await api('teams');
+  const nodes = flattenTeamTree(teams);
+  document.getElementById('teamsTree').innerHTML = nodes.map(t => `
+    <div class="team-node depth-${t.depth}" style="padding-left:${t.depth * 18}px">
+      <span class="name">${escapeHtml(t.name)}${t.active ? '' : ' <span class=\"muted\">(inaktiv)</span>'}</span>
+      <span class="team-node-actions">
+        <button onclick="addTeamNode(${t.id})">+ Unterteam</button>
+        <button class="link" onclick="editTeamNode(${t.id})">Bearbeiten</button>
+        <button class="danger" onclick="deleteTeamNode(${t.id})">Löschen</button>
+      </span>
+    </div>
+  `).join('') || '<p class="muted">Noch keine Abteilungen angelegt.</p>';
+}
+async function addTeamNode(parentId) {
+  const label = parentId ? 'Name des neuen Teams/der Untergruppe:' : 'Name der neuen Abteilung:';
+  const name = prompt(label);
+  if (!name) return;
+  await api('team', { method: 'POST', body: { name, parentId: parentId || undefined } });
+  await loadDepartments();
+  teams = await api('teams');
+}
+async function editTeamNode(id) {
+  const node = teams.find(t => t.id === id);
+  const name = prompt('Neuer Name:', node?.name || '');
+  if (!name) return;
+  await api('team', { method: 'POST', body: { id, name, parentId: node?.parent_id || undefined, active: node?.active } });
+  await loadDepartments();
+}
+async function deleteTeamNode(id) {
+  if (!confirm('Diese Abteilung/dieses Team löschen? Alle Unterteams werden mitgelöscht.')) return;
+  await api('team-delete', { method: 'POST', body: { id } });
+  await loadDepartments();
+  teams = await api('teams');
 }
 
 // ── Beitragsklassen ──────────────────────────────────────────────────
