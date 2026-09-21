@@ -8,3 +8,15 @@ INSERT IGNORE INTO ssv_member_management.membership_types (name, annual_fee, bil
   ('Jugend', 60.00, 'YEARLY'),
   ('Familie', 220.00, 'YEARLY'),
   ('Ehrenmitglied', 0.00, 'YEARLY');
+
+-- Die 5 Abteilungen des Vereins als oberste Ebene der Team-Baumstruktur
+-- (siehe CLAUDE.md). Teams/Untergruppen darunter (z.B. "1. Damen" unter
+-- Fussball, "Badminton" unter Indoor) werden bewusst nicht vorab geseedet -
+-- die Struktur ist pro Abteilung unterschiedlich tief und wird ueber die
+-- Admin-Oberflaeche gepflegt.
+INSERT IGNORE INTO ssv_shared_members.teams (name, parent_id) VALUES
+  ('Outdoor', NULL),
+  ('Indoor', NULL),
+  ('Fußball', NULL),
+  ('Tanzen', NULL),
+  ('Tischtennis', NULL);

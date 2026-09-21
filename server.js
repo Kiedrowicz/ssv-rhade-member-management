@@ -87,11 +87,56 @@ async function writeAudit({ userAccountId, tableName, recordId, fieldName, oldVa
   );
 }
 
+// Baut den Pfad ("Fussball > Jugend > F1") fuer einen Team-Knoten aus der
+// kompletten (kleinen) Teams-Liste - kein rekursives SQL noetig, da die
+// gesamte Baumstruktur ohnehin nur eine Handvoll Zeilen hat.
+function teamPath(allTeams, teamId) {
+  const byId = new Map(allTeams.map(t => [t.id, t]));
+  const parts = [];
+  let current = byId.get(teamId);
+  while (current) {
+    parts.unshift(current.name);
+    current = current.parent_id ? byId.get(current.parent_id) : null;
+  }
+  return parts.join(' › ');
+}
+
 function requireFields(body, fields) {
   for (const f of fields) {
     if (body[f] === undefined || body[f] === null || body[f] === '') return f;
   }
   return null;
+}
+
+// Name der Fussball-Abteilung (oberste Ebene) - travel-expenses kennt nur
+// players.team_id (eine einzelne Spalte), nicht player_teams. Damit neue
+// oder umgezogene Fussball-Mitglieder trotzdem in travel-expenses sichtbar
+// bleiben, wird team_id best-effort mitgesetzt, siehe syncFootballTeamId()
+// unten und CLAUDE.md, Abschnitt "Abteilungen/Teams-Baumstruktur". Bei
+// Umbenennung der Abteilung hier anpassen.
+const FOOTBALL_DEPARTMENT_NAME = 'Fußball';
+
+function isUnderFootballDepartment(allTeams, teamId) {
+  const byId = new Map(allTeams.map(t => [t.id, t]));
+  let current = byId.get(teamId);
+  while (current) {
+    if (!current.parent_id && current.name === FOOTBALL_DEPARTMENT_NAME) return true;
+    current = current.parent_id ? byId.get(current.parent_id) : null;
+  }
+  return false;
+}
+
+// Best-effort-Sync fuer travel-expenses: wenn genau EIN zugeordnetes Team
+// unter der Fussball-Abteilung liegt, players.team_id darauf setzen. Bei
+// keiner oder mehreren Fussball-Zuordnungen bewusst nicht raten -
+// team_id bleibt unveraendert (kein automatisches Leeren/Ueberschreiben
+// bei Mehrdeutigkeit).
+async function syncFootballTeamId(playerId, teamIdList) {
+  const [allTeams] = await pool.query(`SELECT id, name, parent_id FROM ${SHARED_DB}.teams`);
+  const footballTeamIds = teamIdList.filter(tid => isUnderFootballDepartment(allTeams, tid));
+  if (footballTeamIds.length === 1) {
+    await pool.query(`UPDATE ${SHARED_DB}.players SET team_id = ? WHERE id = ?`, [footballTeamIds[0], playerId]);
+  }
 }
 
 // ── Admin-Bootstrap ──────────────────────────────────────────────────────
@@ -133,8 +178,12 @@ app.get('/api', async (req, res) => {
         return res.json({ userAccountId: req.user.userAccountId, username: account.username });
       }
 
+      // Komplette flache Liste (inkl. inaktiver Knoten und parent_id) -
+      // Frontend baut daraus den Baum. Kein serverseitiger active-Filter
+      // mehr, da die Abteilungsverwaltung auch inaktive Knoten anzeigen
+      // koennen muss.
       case 'teams': {
-        const [rows] = await pool.query(`SELECT id, name FROM ${SHARED_DB}.teams WHERE active = 1 ORDER BY name`);
+        const [rows] = await pool.query(`SELECT id, name, parent_id, active FROM ${SHARED_DB}.teams ORDER BY name`);
         return res.json(rows);
       }
 
@@ -152,19 +201,25 @@ app.get('/api', async (req, res) => {
           params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
         if (status) { where.push('m.status = ?'); params.push(status); }
-        if (teamId) { where.push('p.team_id = ?'); params.push(Number(teamId)); }
+        if (teamId) {
+          where.push(`EXISTS (SELECT 1 FROM ${SHARED_DB}.player_teams pt WHERE pt.player_id = p.id AND pt.team_id = ?)`);
+          params.push(Number(teamId));
+        }
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
         const [rows] = await pool.query(
           `SELECT p.id as player_id, p.salutation, p.first_name, p.last_name, p.email, p.phone,
-                  p.birth_date, t.id as team_id, t.name as team_name,
+                  p.birth_date,
+                  GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ', ') as team_names,
                   m.membership_number, m.status, m.joined_at, m.left_at,
                   mt.id as membership_type_id, mt.name as membership_type_name
            FROM ${SHARED_DB}.players p
-           LEFT JOIN ${SHARED_DB}.teams t ON t.id = p.team_id
+           LEFT JOIN ${SHARED_DB}.player_teams pt2 ON pt2.player_id = p.id
+           LEFT JOIN ${SHARED_DB}.teams t ON t.id = pt2.team_id
            LEFT JOIN memberships m ON m.player_id = p.id
            LEFT JOIN membership_types mt ON mt.id = m.membership_type_id
            ${whereSql}
+           GROUP BY p.id
            ORDER BY p.last_name, p.first_name`,
           params
         );
@@ -176,11 +231,10 @@ app.get('/api', async (req, res) => {
         if (!playerId) return fail(res, 'playerId erforderlich');
 
         const [[player]] = await pool.query(
-          `SELECT p.*, t.name as team_name,
+          `SELECT p.*,
                   m.membership_number, m.status, m.joined_at, m.left_at, m.notes,
                   mt.id as membership_type_id, mt.name as membership_type_name
            FROM ${SHARED_DB}.players p
-           LEFT JOIN ${SHARED_DB}.teams t ON t.id = p.team_id
            LEFT JOIN memberships m ON m.player_id = p.id
            LEFT JOIN membership_types mt ON mt.id = m.membership_type_id
            WHERE p.id = ?`,
@@ -191,8 +245,14 @@ app.get('/api', async (req, res) => {
         const [offices] = await pool.query('SELECT * FROM member_offices WHERE player_id = ? ORDER BY valid_from DESC', [playerId]);
         const [guardians] = await pool.query('SELECT * FROM guardians WHERE player_id = ? ORDER BY last_name', [playerId]);
         const [fees] = await pool.query('SELECT * FROM membership_fees WHERE player_id = ? ORDER BY year DESC', [playerId]);
+        const [teamRows] = await pool.query(
+          `SELECT t.id, t.name FROM ${SHARED_DB}.player_teams pt JOIN ${SHARED_DB}.teams t ON t.id = pt.team_id WHERE pt.player_id = ?`,
+          [playerId]
+        );
+        const [allTeams] = await pool.query(`SELECT id, name, parent_id FROM ${SHARED_DB}.teams`);
+        const teams = teamRows.map(t => ({ id: t.id, name: t.name, path: teamPath(allTeams, t.id) }));
 
-        return res.json({ ...player, offices, guardians, fees });
+        return res.json({ ...player, offices, guardians, fees, teams });
       }
 
       default:
@@ -259,29 +319,45 @@ app.post('/api', async (req, res) => {
 
         const {
           playerId, salutation, firstName, lastName, street, houseNumber, postalCode, city,
-          email, phone, birthDate, teamId,
+          email, phone, birthDate, teamIds,
           membershipNumber, membershipTypeId, status, joinedAt, leftAt, notes,
         } = req.body;
 
         let resolvedPlayerId = playerId ? Number(playerId) : null;
 
+        // team_id (die alte Einzel-Spalte) wird hier bewusst NICHT mehr
+        // gesetzt - travel-expenses liest/schreibt sie weiter fuer sich,
+        // diese App verwaltet Team-Zugehoerigkeit ausschliesslich ueber
+        // player_teams (Mehrfachmitgliedschaft), siehe CLAUDE.md.
         if (resolvedPlayerId) {
           await pool.query(
             `UPDATE ${SHARED_DB}.players SET salutation=?, first_name=?, last_name=?, street=?, house_number=?,
-               postal_code=?, city=?, email=?, phone=?, birth_date=?, team_id=? WHERE id=?`,
+               postal_code=?, city=?, email=?, phone=?, birth_date=? WHERE id=?`,
             [salutation || null, firstName, lastName, street || null, houseNumber || null, postalCode || null,
-             city || null, email || null, phone || null, birthDate || null, teamId || null, resolvedPlayerId]
+             city || null, email || null, phone || null, birthDate || null, resolvedPlayerId]
           );
         } else {
           const [result] = await pool.query(
             `INSERT INTO ${SHARED_DB}.players
-               (salutation, first_name, last_name, street, house_number, postal_code, city, email, phone, birth_date, team_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (salutation, first_name, last_name, street, house_number, postal_code, city, email, phone, birth_date)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [salutation || null, firstName, lastName, street || null, houseNumber || null, postalCode || null,
-             city || null, email || null, phone || null, birthDate || null, teamId || null]
+             city || null, email || null, phone || null, birthDate || null]
           );
           resolvedPlayerId = result.insertId;
         }
+
+        // player_teams komplett ersetzen (einfaches "replace"-Muster,
+        // konsistent mit dem Rest dieses Endpunkts).
+        await pool.query(`DELETE FROM ${SHARED_DB}.player_teams WHERE player_id = ?`, [resolvedPlayerId]);
+        const teamIdList = Array.isArray(teamIds) ? teamIds.map(Number).filter(Boolean) : [];
+        if (teamIdList.length) {
+          await pool.query(
+            `INSERT INTO ${SHARED_DB}.player_teams (player_id, team_id) VALUES ${teamIdList.map(() => '(?, ?)').join(', ')}`,
+            teamIdList.flatMap(tid => [resolvedPlayerId, tid])
+          );
+        }
+        await syncFootballTeamId(resolvedPlayerId, teamIdList);
 
         const [[existingMembership]] = await pool.query('SELECT status FROM memberships WHERE player_id = ?', [resolvedPlayerId]);
         await pool.query(
@@ -323,6 +399,36 @@ app.post('/api', async (req, res) => {
           [name, Number(annualFee), billingInterval || 'YEARLY', active === false ? 0 : 1]
         );
         return res.json({ ok: true, id: result.insertId });
+      }
+
+      // Abteilung (parentId leer) oder Team/Untergruppe (parentId gesetzt)
+      // anlegen/umbenennen/verschieben.
+      case 'team': {
+        const { id, name, parentId, active } = req.body;
+        const missing = requireFields(req.body, ['name']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+
+        if (id) {
+          await pool.query(
+            `UPDATE ${SHARED_DB}.teams SET name=?, parent_id=?, active=? WHERE id=?`,
+            [name, parentId || null, active === false ? 0 : 1, id]
+          );
+          return res.json({ ok: true, id: Number(id) });
+        }
+        const [result] = await pool.query(
+          `INSERT INTO ${SHARED_DB}.teams (name, parent_id, active) VALUES (?, ?, ?)`,
+          [name, parentId || null, active === false ? 0 : 1]
+        );
+        return res.json({ ok: true, id: result.insertId });
+      }
+
+      // Loescht rekursiv auch alle Unterknoten (ON DELETE CASCADE auf
+      // teams.parent_id) - Frontend warnt davor.
+      case 'team-delete': {
+        const { id } = req.body;
+        if (!id) return fail(res, 'id erforderlich');
+        await pool.query(`DELETE FROM ${SHARED_DB}.teams WHERE id = ?`, [id]);
+        return res.json({ ok: true });
       }
 
       case 'office': {

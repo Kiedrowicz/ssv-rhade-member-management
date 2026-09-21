@@ -67,13 +67,61 @@ README).
 
 ## Schema-Migrationen
 
-`db/00-schema.sql` besteht ausschließlich aus `CREATE DATABASE IF NOT
-EXISTS` / `CREATE TABLE IF NOT EXISTS` (keine ALTER/INSERT/DROP) und wird bei
-**jedem** Serverstart erneut ausgeführt (siehe `runSchemaMigrations()` in
+`db/00-schema.sql` besteht überwiegend aus `CREATE DATABASE IF NOT EXISTS` /
+`CREATE TABLE IF NOT EXISTS` (keine INSERT/DROP) und wird bei **jedem**
+Serverstart erneut ausgeführt (siehe `runSchemaMigrations()` in
 `server.js`) — exakt das Muster aus travel-expenses. Eine neue Tabelle im
 Code wird so automatisch auf einer laufenden Produktions-DB nachgezogen,
 ohne manuellen SSH-Eingriff. Eine neue Spalte an einer bestehenden Tabelle
-braucht weiterhin ein manuelles `ALTER TABLE`.
+braucht normalerweise ein manuelles `ALTER TABLE` — **Ausnahme**: die
+`ALTER TABLE ssv_shared_members.teams ADD COLUMN IF NOT EXISTS ...` /
+`ADD FOREIGN KEY IF NOT EXISTS ...`-Zeilen in `00-schema.sql` sind bewusst
+idempotent formuliert (MariaDB-spezifische `IF NOT EXISTS`-Syntax, gegen
+MariaDB 10.11 verifiziert) und laufen deshalb ebenfalls bei jedem
+Serverstart mit. Wichtig: `ADD CONSTRAINT IF NOT EXISTS ... FOREIGN KEY`
+ist **kein** gültiges Syntax in MariaDB 10.11 — Fremdschlüssel müssen ohne
+das `CONSTRAINT`-Keyword idempotent ergänzt werden
+(`ADD FOREIGN KEY IF NOT EXISTS name (spalte) REFERENCES ...`).
+
+## Abteilungen/Teams-Baumstruktur
+
+SSV Rhade ist ein Mehrspartenverein (Outdoor, Indoor, Fußball, Tanzen,
+Tischtennis) mit unterschiedlich tief verschachtelten Teams/Untergruppen je
+Abteilung (z.B. Fußball → Jugend → F1, oder Indoor → Badminton →
+Erwachsene). `ssv_shared_members.teams` ist deshalb um eine selbst-
+referenzierende `parent_id`-Spalte erweitert (rein additiv, von dieser App
+ergänzt — travel-expenses hat die Tabelle ursprünglich angelegt, kennt
+`parent_id` aber nicht und funktioniert unverändert weiter).
+`parent_id IS NULL` = Abteilung (oberste Ebene), sonst Team/Untergruppe
+beliebiger Tiefe. Die 5 Abteilungen werden per `db/01-seed-data.sql`
+angelegt, die tiefere Struktur wird über den "Abteilungen"-Tab im
+Admin-Dashboard gepflegt.
+
+Ein Mitglied kann gleichzeitig in mehreren Teams/Abteilungen sein (z.B.
+Fußball UND Tischtennis) — dafür gibt es die neue, ebenfalls in
+`ssv_shared_members` liegende Tabelle `player_teams` (n:m,
+Fremdschlüssel auf `players`/`teams`, `ON DELETE CASCADE`).
+
+**Best-effort-Sync mit travel-expenses:** travel-expenses kennt nur
+`players.team_id` (eine einzelne Spalte), nicht `player_teams`. Damit neue
+oder umgezogene Fußball-Mitglieder trotzdem in travel-expenses' Spielerliste
+und Fahrtkostenabrechnung auftauchen, setzt `POST member`
+(`syncFootballTeamId()` in `server.js`) `team_id` automatisch mit, **wenn
+genau ein** zugeordnetes Team unterhalb der Abteilung "Fußball" liegt
+(Name als Konstante `FOOTBALL_DEPARTMENT_NAME` — bei Umbenennung der
+Abteilung dort anpassen). Bei keiner oder mehreren Fußball-Zuordnungen wird
+bewusst **nicht geraten** — `team_id` bleibt unverändert stehen, wird also
+insbesondere nie automatisch geleert. Das ist nur ein **einseitiger**
+Sync: Team-Änderungen, die jemand direkt in travel-expenses' eigener
+Oberfläche vornimmt, kommen nicht in `player_teams` an — dafür bräuchte es
+eine Änderung im travel-expenses-Repo selbst, das ist bewusst nicht Teil
+dieser Umsetzung.
+
+Mit dieser Erweiterung schreibt member-management erstmals nicht nur
+Zeilen in die gemeinsame Datenbank, sondern verändert dort auch das Schema
+selbst (neue Spalte an `teams`, neue Tabelle `player_teams`) — die
+bisherige Rollenteilung "travel-expenses legt an, andere Apps lesen/nutzen
+nur" gilt also nicht mehr uneingeschränkt.
 
 ## Beitragsverwaltung — Scope der ersten Version
 
