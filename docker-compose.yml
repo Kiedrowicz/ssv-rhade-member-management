@@ -1,0 +1,48 @@
+services:
+
+  # Kein eigener mariadb-Service: diese App verbindet sich mit dem
+  # MariaDB-Container von travel-expenses (ssv_shared_members liegt dort),
+  # siehe CLAUDE.md, Abschnitt "Kein eigener MariaDB-Container".
+  # Produktiv per Docker-DNS ueber das externe Netzwerk ssv-shared
+  # (ssv-travel-mariadb:3306, siehe travel-expenses' CLAUDE.md).
+
+  dashboard:
+    build: .
+    container_name: ssv-member-management
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      DB_HOST: ${DB_HOST:-ssv-travel-mariadb}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ssv_member_management
+      DB_USER: ssv_members
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD muss gesetzt sein, siehe scripts/grant-db-user.sql}
+      SHARED_DB_NAME: ssv_shared_members
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss gesetzt sein}
+    networks:
+      - default
+      - ssv-shared
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: ssv-member-management-caddy
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+      - "8445:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy reverse-proxy --from :80 --to dashboard:3000
+    depends_on:
+      dashboard:
+        condition: service_started
+
+networks:
+  ssv-shared:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

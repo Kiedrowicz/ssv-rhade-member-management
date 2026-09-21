@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSV Rhade – Mitgliederverwaltung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { color-scheme: light; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #F0F2F5;
+    color: #1a1a1a;
+    font-size: 14px;
+  }
+  button, input, select, textarea { font: inherit; }
+  input, select, textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #d7d7dc;
+    border-radius: 8px;
+    background: #fff;
+  }
+  label { display: block; font-size: 0.75rem; font-weight: 600; color: #555; margin-bottom: 4px; }
+  .field { margin-bottom: 12px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-weight: 600;
+    background: #eee;
+    color: #333;
+  }
+  button:hover { box-shadow: 0 1px 6px rgba(0,0,0,.15); }
+  button.primary { background: #7D1A1A; color: #fff; }
+  button.danger { background: #fff; color: #b33; border: 1px solid #e4b8b8; }
+  button.link { background: none; padding: 4px 6px; color: #7D1A1A; }
+
+  header {
+    background: linear-gradient(135deg, #7D1A1A 0%, #9a2020 100%);
+    color: #fff;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 12px rgba(125,26,26,.4);
+  }
+  .hd-logo { width: 38px; height: 38px; border-radius: 10px; background: #fff; padding: 4px; object-fit: contain; }
+  .hd-title { font-size: 1.05rem; font-weight: 700; }
+  .hd-user { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; opacity: .9; }
+  .hd-user button { background: rgba(255,255,255,.15); color: #fff; }
+
+  nav.tabs { display: flex; gap: 4px; padding: 10px 20px 0; background: #fff; border-bottom: 1px solid #e2e2e6; }
+  nav.tabs button { background: none; border-radius: 8px 8px 0 0; padding: 10px 16px; color: #666; }
+  nav.tabs button.active { background: #F0F2F5; color: #7D1A1A; font-weight: 700; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 18px; }
+  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .card h2 { font-size: 1rem; margin-bottom: 12px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row .field { flex: 1; min-width: 140px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
+  th { color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .03em; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover { background: #faf5f5; }
+  .table-wrap { overflow-x: auto; }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+  .badge.ACTIVE { background: #e3f3e6; color: #237a3a; }
+  .badge.PAUSED { background: #fdf1d8; color: #9a6a10; }
+  .badge.TERMINATED { background: #f2e2e2; color: #883535; }
+  .badge.OPEN { background: #fdf1d8; color: #9a6a10; }
+  .badge.PAID { background: #e3f3e6; color: #237a3a; }
+  .badge.OVERDUE { background: #f2e2e2; color: #883535; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .subsection { border-top: 1px solid #eee; margin-top: 16px; padding-top: 16px; }
+  .subsection h3 { font-size: 0.85rem; margin-bottom: 10px; }
+  .list-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f2; }
+  .list-item:last-child { border-bottom: none; }
+  .muted { color: #888; font-size: 0.8rem; }
+  .error { color: #b33; font-size: 0.82rem; margin-top: 8px; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
+
+  #loginScreen { max-width: 340px; margin: 12vh auto; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="card">
+  <h2>Anmelden</h2>
+  <div class="field"><label>Benutzername</label><input id="loginUsername" autocomplete="username"></div>
+  <div class="field"><label>Passwort</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+  <button class="primary" style="width:100%" onclick="login()">Anmelden</button>
+  <div id="loginError" class="error"></div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <img class="hd-logo" src="assets/ssv-rhade-logo.png" alt="">
+    <div class="hd-title">Mitgliederverwaltung</div>
+    <div class="hd-user">
+      <span id="hdUsername"></span>
+      <button onclick="showChangePassword()">Passwort ändern</button>
+      <button onclick="logout()">Abmelden</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button id="tabBtnMembers" class="active" onclick="showTab('members')">Mitglieder</button>
+    <button id="tabBtnTypes" onclick="showTab('types')">Beitragsklassen</button>
+  </nav>
+
+  <main>
+    <!-- ── Mitglieder-Liste ─────────────────────────────────────────── -->
+    <section id="tabMembers">
+      <div class="card">
+        <div class="toolbar">
+          <div class="row" style="flex:1">
+            <div class="field"><input id="filterSearch" placeholder="Suche: Name oder Mitgliedsnummer" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:160px">
+              <select id="filterStatus" onchange="loadMembers()">
+                <option value="">Alle Status</option>
+                <option value="ACTIVE">Aktiv</option>
+                <option value="PAUSED">Ruhend</option>
+                <option value="TERMINATED">Gekündigt</option>
+              </select>
+            </div>
+            <div class="field" style="max-width:200px">
+              <select id="filterTeam" onchange="loadMembers()"><option value="">Alle Teams</option></select>
+            </div>
+          </div>
+          <button class="primary" onclick="openMemberForm(null)">+ Neues Mitglied</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Team</th><th>Beitragsklasse</th><th>Mitgl.-Nr.</th><th>Status</th></tr></thead>
+            <tbody id="membersBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Mitglied-Detail / Formular ───────────────────────────────── -->
+    <section id="tabMemberDetail" hidden>
+      <button class="link" onclick="showTab('members')">← Zurück zur Liste</button>
+      <div class="card">
+        <h2 id="memberFormTitle">Neues Mitglied</h2>
+        <div class="grid2">
+          <div class="field"><label>Anrede</label><input id="mSalutation"></div>
+          <div class="field"><label>Team</label><select id="mTeam"><option value="">–</option></select></div>
+          <div class="field"><label>Vorname *</label><input id="mFirstName"></div>
+          <div class="field"><label>Nachname *</label><input id="mLastName"></div>
+          <div class="field"><label>Straße</label><input id="mStreet"></div>
+          <div class="field"><label>Hausnummer</label><input id="mHouseNumber"></div>
+          <div class="field"><label>PLZ</label><input id="mPostalCode"></div>
+          <div class="field"><label>Ort</label><input id="mCity"></div>
+          <div class="field"><label>E-Mail</label><input id="mEmail" type="email"></div>
+          <div class="field"><label>Telefon</label><input id="mPhone"></div>
+          <div class="field"><label>Geburtsdatum</label><input id="mBirthDate" type="date"></div>
+          <div class="field"><label>Mitgliedsnummer</label><input id="mMembershipNumber"></div>
+          <div class="field"><label>Beitragsklasse</label><select id="mMembershipType"><option value="">–</option></select></div>
+          <div class="field"><label>Status</label>
+            <select id="mStatus">
+              <option value="ACTIVE">Aktiv</option>
+              <option value="PAUSED">Ruhend</option>
+              <option value="TERMINATED">Gekündigt</option>
+            </select>
+          </div>
+          <div class="field"><label>Eintrittsdatum</label><input id="mJoinedAt" type="date"></div>
+          <div class="field"><label>Austrittsdatum</label><input id="mLeftAt" type="date"></div>
+        </div>
+        <div class="field"><label>Notizen</label><textarea id="mNotes" rows="2"></textarea></div>
+        <button class="primary" onclick="saveMember()">Speichern</button>
+        <div id="memberError" class="error"></div>
+      </div>
+
+      <div id="detailSections" hidden>
+        <div class="card">
+          <div class="toolbar"><h2 style="margin:0">Ämter</h2><button onclick="addOffice()">+ Amt</button></div>
+          <div id="officesList"></div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><h2 style="margin:0">Erziehungsberechtigte</h2><button onclick="addGuardian()">+ Person</button></div>
+          <div id="guardiansList"></div>
+        </div>
+        <div class="card">
+          <div class="toolbar"><h2 style="margin:0">Beitragsfälligkeiten</h2><button onclick="addFee()">+ Fälligkeit</button></div>
+          <div id="feesList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Beitragsklassen ──────────────────────────────────────────── -->
+    <section id="tabTypes" hidden>
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0">Beitragsklassen</h2>
+          <button class="primary" onclick="openTypeForm(null)">+ Neue Klasse</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Jahresbeitrag</th><th>Intervall</th><th>Aktiv</th><th></th></tr></thead>
+            <tbody id="typesBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0">Beitragsfälligkeiten für ein Jahr generieren</h2>
+        </div>
+        <p class="muted" style="margin-bottom:10px">Legt für alle aktiven Mitglieder mit Beitragsklasse eine offene Fälligkeit an (überspringt Mitglieder, die für das Jahr schon eine haben).</p>
+        <div class="row">
+          <div class="field" style="max-width:120px"><label>Jahr</label><input id="genYear" type="number"></div>
+          <div class="field" style="max-width:180px"><label>Fälligkeitsdatum</label><input id="genDueDate" type="date"></div>
+          <button class="primary" onclick="generateFees()">Generieren</button>
+        </div>
+        <div id="genResult" class="muted" style="margin-top:8px"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+let teams = [];
+let membershipTypes = [];
+let currentPlayerId = null;
+let searchDebounce = null;
+
+async function api(action, { method = 'GET', body } = {}) {
+  const opts = { method, headers: {} };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify({ action, ...body }); }
+  const url = method === 'GET' ? `/api?action=${action}${queryFromBody(body)}` : '/api';
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Fehler');
+  return data;
+}
+function queryFromBody(body) {
+  if (!body) return '';
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(body)) if (v !== undefined && v !== null && v !== '') params.set(k, v);
+  const s = params.toString();
+  return s ? `&${s}` : '';
+}
+
+async function login() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  document.getElementById('loginError').textContent = '';
+  try {
+    await api('login', { method: 'POST', body: { username, password } });
+    await boot();
+  } catch (err) {
+    document.getElementById('loginError').textContent = err.message;
+  }
+}
+async function logout() {
+  await api('logout', { method: 'POST', body: {} });
+  document.getElementById('app').hidden = true;
+  document.getElementById('loginScreen').hidden = false;
+}
+async function showChangePassword() {
+  const currentPassword = prompt('Aktuelles Passwort:');
+  if (!currentPassword) return;
+  const newPassword = prompt('Neues Passwort (mind. 8 Zeichen):');
+  if (!newPassword) return;
+  try {
+    await api('change-password', { method: 'POST', body: { currentPassword, newPassword } });
+    alert('Passwort geändert.');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function showTab(tab) {
+  document.getElementById('tabMembers').hidden = tab !== 'members';
+  document.getElementById('tabMemberDetail').hidden = tab !== 'memberDetail';
+  document.getElementById('tabTypes').hidden = tab !== 'types';
+  document.getElementById('tabBtnMembers').classList.toggle('active', tab === 'members');
+  document.getElementById('tabBtnTypes').classList.toggle('active', tab === 'types');
+  if (tab === 'members') loadMembers();
+  if (tab === 'types') loadTypes();
+}
+
+function debouncedLoadMembers() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(loadMembers, 300);
+}
+
+async function loadLookups() {
+  teams = await api('teams');
+  membershipTypes = await api('membership-types');
+  const teamOpts = teams.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  document.getElementById('filterTeam').innerHTML = '<option value="">Alle Teams</option>' + teamOpts;
+  document.getElementById('mTeam').innerHTML = '<option value="">–</option>' + teamOpts;
+  const typeOpts = membershipTypes.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  document.getElementById('mMembershipType').innerHTML = '<option value="">–</option>' + typeOpts;
+}
+
+async function loadMembers() {
+  const search = document.getElementById('filterSearch').value.trim();
+  const status = document.getElementById('filterStatus').value;
+  const teamId = document.getElementById('filterTeam').value;
+  const rows = await api('members', { body: { search, status, teamId } });
+  document.getElementById('membersBody').innerHTML = rows.map(r => `
+    <tr class="clickable" onclick="openMemberForm(${r.player_id})">
+      <td>${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)}</td>
+      <td>${escapeHtml(r.team_name || '–')}</td>
+      <td>${escapeHtml(r.membership_type_name || '–')}</td>
+      <td>${escapeHtml(r.membership_number || '–')}</td>
+      <td>${r.status ? `<span class="badge ${r.status}">${statusLabel(r.status)}</span>` : '<span class="muted">kein Mitglied</span>'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="muted">Keine Mitglieder gefunden.</td></tr>';
+}
+
+function statusLabel(s) {
+  return { ACTIVE: 'Aktiv', PAUSED: 'Ruhend', TERMINATED: 'Gekündigt', OPEN: 'Offen', PAID: 'Bezahlt', OVERDUE: 'Überfällig' }[s] || s;
+}
+
+async function openMemberForm(playerId) {
+  currentPlayerId = playerId;
+  document.getElementById('memberError').textContent = '';
+  document.getElementById('memberFormTitle').textContent = playerId ? 'Mitglied bearbeiten' : 'Neues Mitglied';
+  document.getElementById('detailSections').hidden = !playerId;
+
+  for (const id of ['mSalutation','mTeam','mFirstName','mLastName','mStreet','mHouseNumber','mPostalCode','mCity',
+    'mEmail','mPhone','mBirthDate','mMembershipNumber','mMembershipType','mJoinedAt','mLeftAt','mNotes']) {
+    document.getElementById(id).value = '';
+  }
+  document.getElementById('mStatus').value = 'ACTIVE';
+
+  if (playerId) {
+    const m = await api('member', { body: { playerId } });
+    document.getElementById('mSalutation').value = m.salutation || '';
+    document.getElementById('mTeam').value = m.team_id || '';
+    document.getElementById('mFirstName').value = m.first_name || '';
+    document.getElementById('mLastName').value = m.last_name || '';
+    document.getElementById('mStreet').value = m.street || '';
+    document.getElementById('mHouseNumber').value = m.house_number || '';
+    document.getElementById('mPostalCode').value = m.postal_code || '';
+    document.getElementById('mCity').value = m.city || '';
+    document.getElementById('mEmail').value = m.email || '';
+    document.getElementById('mPhone').value = m.phone || '';
+    document.getElementById('mBirthDate').value = m.birth_date || '';
+    document.getElementById('mMembershipNumber').value = m.membership_number || '';
+    document.getElementById('mMembershipType').value = m.membership_type_id || '';
+    document.getElementById('mStatus').value = m.status || 'ACTIVE';
+    document.getElementById('mJoinedAt').value = m.joined_at || '';
+    document.getElementById('mLeftAt').value = m.left_at || '';
+    document.getElementById('mNotes').value = m.notes || '';
+
+    renderOffices(m.offices);
+    renderGuardians(m.guardians);
+    renderFees(m.fees);
+  }
+
+  document.getElementById('tabMembers').hidden = true;
+  document.getElementById('tabTypes').hidden = true;
+  document.getElementById('tabMemberDetail').hidden = false;
+}
+
+async function saveMember() {
+  const body = {
+    playerId: currentPlayerId || undefined,
+    salutation: document.getElementById('mSalutation').value.trim(),
+    teamId: document.getElementById('mTeam').value || undefined,
+    firstName: document.getElementById('mFirstName').value.trim(),
+    lastName: document.getElementById('mLastName').value.trim(),
+    street: document.getElementById('mStreet').value.trim(),
+    houseNumber: document.getElementById('mHouseNumber').value.trim(),
+    postalCode: document.getElementById('mPostalCode').value.trim(),
+    city: document.getElementById('mCity').value.trim(),
+    email: document.getElementById('mEmail').value.trim(),
+    phone: document.getElementById('mPhone').value.trim(),
+    birthDate: document.getElementById('mBirthDate').value || undefined,
+    membershipNumber: document.getElementById('mMembershipNumber').value.trim(),
+    membershipTypeId: document.getElementById('mMembershipType').value || undefined,
+    status: document.getElementById('mStatus').value,
+    joinedAt: document.getElementById('mJoinedAt').value || undefined,
+    leftAt: document.getElementById('mLeftAt').value || undefined,
+    notes: document.getElementById('mNotes').value.trim(),
+  };
+  try {
+    const result = await api('member', { method: 'POST', body });
+    currentPlayerId = result.playerId;
+    await openMemberForm(currentPlayerId);
+  } catch (err) {
+    document.getElementById('memberError').textContent = err.message;
+  }
+}
+
+// ── Ämter ──────────────────────────────────────────────────────────────
+function renderOffices(offices) {
+  document.getElementById('officesList').innerHTML = offices.map(o => `
+    <div class="list-item">
+      <div>
+        <strong>${escapeHtml(o.title)}</strong>
+        <div class="muted">${o.valid_from || '?'} – ${o.valid_until || 'offen'}</div>
+      </div>
+      <button class="danger" onclick="deleteOffice(${o.id})">Löschen</button>
+    </div>
+  `).join('') || '<div class="muted">Keine Ämter hinterlegt.</div>';
+}
+async function addOffice() {
+  const title = prompt('Bezeichnung des Amts (z.B. Trainer, Vorstand):');
+  if (!title) return;
+  await api('office', { method: 'POST', body: { playerId: currentPlayerId, title } });
+  await openMemberForm(currentPlayerId);
+}
+async function deleteOffice(id) {
+  if (!confirm('Amt wirklich löschen?')) return;
+  await api('office-delete', { method: 'POST', body: { id } });
+  await openMemberForm(currentPlayerId);
+}
+
+// ── Erziehungsberechtigte ────────────────────────────────────────────
+function renderGuardians(guardians) {
+  document.getElementById('guardiansList').innerHTML = guardians.map(g => `
+    <div class="list-item">
+      <div>
+        <strong>${escapeHtml(g.first_name)} ${escapeHtml(g.last_name)}</strong>
+        <div class="muted">${escapeHtml(g.relationship || '')} ${g.email ? '· ' + escapeHtml(g.email) : ''} ${g.phone ? '· ' + escapeHtml(g.phone) : ''}</div>
+      </div>
+      <button class="danger" onclick="deleteGuardian(${g.id})">Löschen</button>
+    </div>
+  `).join('') || '<div class="muted">Keine Erziehungsberechtigten hinterlegt.</div>';
+}
+async function addGuardian() {
+  const firstName = prompt('Vorname:');
+  if (!firstName) return;
+  const lastName = prompt('Nachname:');
+  if (!lastName) return;
+  const relationship = prompt('Beziehung (z.B. Mutter, Vater):') || '';
+  await api('guardian', { method: 'POST', body: { playerId: currentPlayerId, firstName, lastName, relationship } });
+  await openMemberForm(currentPlayerId);
+}
+async function deleteGuardian(id) {
+  if (!confirm('Person wirklich löschen?')) return;
+  await api('guardian-delete', { method: 'POST', body: { id } });
+  await openMemberForm(currentPlayerId);
+}
+
+// ── Beitragsfälligkeiten ─────────────────────────────────────────────
+function renderFees(fees) {
+  lastFees = fees;
+  document.getElementById('feesList').innerHTML = fees.map(f => `
+    <div class="list-item">
+      <div>
+        <strong>${f.year}</strong> · ${Number(f.amount_due).toFixed(2)} € · fällig ${f.due_date}
+        <span class="badge ${f.status}">${statusLabel(f.status)}</span>
+      </div>
+      <div>
+        ${f.status !== 'PAID' ? `<button onclick="markFeePaid(${f.id})">Als bezahlt markieren</button>` : ''}
+        <button class="danger" onclick="deleteFee(${f.id})">Löschen</button>
+      </div>
+    </div>
+  `).join('') || '<div class="muted">Keine Beitragsfälligkeiten hinterlegt.</div>';
+}
+async function addFee() {
+  const year = prompt('Jahr:', new Date().getFullYear());
+  if (!year) return;
+  const amountDue = prompt('Betrag (€):');
+  if (!amountDue) return;
+  const dueDate = prompt('Fälligkeitsdatum (JJJJ-MM-TT):');
+  if (!dueDate) return;
+  await api('fee', { method: 'POST', body: { playerId: currentPlayerId, year, amountDue, dueDate } });
+  await openMemberForm(currentPlayerId);
+}
+async function markFeePaid(id) {
+  await api('fee', { method: 'POST', body: { id, playerId: currentPlayerId, status: 'PAID', paidAt: new Date().toISOString().slice(0,10), amountDue: feeAmount(id), dueDate: feeDueDate(id) } });
+  await openMemberForm(currentPlayerId);
+}
+let lastFees = [];
+function feeAmount(id) { const f = lastFees.find(x => x.id === id); return f ? f.amount_due : 0; }
+function feeDueDate(id) { const f = lastFees.find(x => x.id === id); return f ? f.due_date : ''; }
+async function deleteFee(id) {
+  if (!confirm('Fälligkeit wirklich löschen?')) return;
+  await api('fee-delete', { method: 'POST', body: { id } });
+  await openMemberForm(currentPlayerId);
+}
+
+// ── Beitragsklassen ──────────────────────────────────────────────────
+async function loadTypes() {
+  membershipTypes = await api('membership-types');
+  document.getElementById('typesBody').innerHTML = membershipTypes.map(t => `
+    <tr>
+      <td>${escapeHtml(t.name)}</td>
+      <td>${Number(t.annual_fee).toFixed(2)} €</td>
+      <td>${intervalLabel(t.billing_interval)}</td>
+      <td>${t.active ? 'Ja' : 'Nein'}</td>
+      <td><button class="link" onclick="openTypeForm(${t.id})">Bearbeiten</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="muted">Keine Beitragsklassen angelegt.</td></tr>';
+}
+function intervalLabel(i) {
+  return { YEARLY: 'Jährlich', HALF_YEARLY: 'Halbjährlich', QUARTERLY: 'Quartalsweise', MONTHLY: 'Monatlich' }[i] || i;
+}
+async function openTypeForm(id) {
+  const existing = id ? membershipTypes.find(t => t.id === id) : null;
+  const name = prompt('Name der Beitragsklasse:', existing?.name || '');
+  if (!name) return;
+  const annualFee = prompt('Jahresbeitrag (€):', existing?.annual_fee || '0');
+  if (annualFee === null) return;
+  await api('membership-type', { method: 'POST', body: { id, name, annualFee, billingInterval: existing?.billing_interval || 'YEARLY' } });
+  await loadTypes();
+}
+
+async function generateFees() {
+  const year = document.getElementById('genYear').value;
+  const dueDate = document.getElementById('genDueDate').value;
+  if (!year || !dueDate) { alert('Jahr und Fälligkeitsdatum angeben.'); return; }
+  const result = await api('generate-fees', { method: 'POST', body: { year, dueDate } });
+  document.getElementById('genResult').textContent = `${result.created} neue Fälligkeit(en) angelegt (${result.checked} aktive Mitglieder geprüft).`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+async function boot() {
+  try {
+    const me = await api('me');
+    document.getElementById('hdUsername').textContent = me.username;
+    document.getElementById('loginScreen').hidden = true;
+    document.getElementById('app').hidden = false;
+    await loadLookups();
+    document.getElementById('genYear').value = new Date().getFullYear();
+    showTab('members');
+  } catch {
+    document.getElementById('loginScreen').hidden = false;
+    document.getElementById('app').hidden = true;
+  }
+}
+boot();
+</script>
+</body>
+</html>

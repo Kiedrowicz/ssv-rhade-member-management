@@ -1,0 +1,12 @@
+.env
+.git
+node_modules
+scripts
+db
+*.js
+*.json
+!app/
+!server.js
+!package.json
+!package-lock.json
+!db/00-schema.sql
