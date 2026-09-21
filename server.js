@@ -485,7 +485,10 @@ app.post('/api', async (req, res) => {
 
       case 'fee': {
         const { id, playerId, year, amountDue, dueDate, status, paidAt, paymentMethod } = req.body;
-        const missing = requireFields(req.body, ['playerId', 'year', 'amountDue', 'dueDate']);
+        // year nur beim Neuanlegen erforderlich - beim Update (z.B. "als
+        // bezahlt markieren") ist die Zeile schon vorhanden und year
+        // bleibt unveraendert.
+        const missing = requireFields(req.body, id ? ['playerId', 'amountDue', 'dueDate'] : ['playerId', 'year', 'amountDue', 'dueDate']);
         if (missing) return fail(res, `Feld "${missing}" erforderlich`);
 
         let oldStatus = null;
