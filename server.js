@@ -101,6 +101,26 @@ function teamPath(allTeams, teamId) {
   return parts.join(' › ');
 }
 
+// Alle Nachfahren-IDs eines Knotens - vor dem Verschieben (parentId
+// aendern) muss geprueft werden, dass der neue Elternknoten kein eigener
+// Nachfahre ist, sonst entsteht ein Zyklus im Baum (siehe 'team'-Action).
+function getDescendantIds(allTeams, id) {
+  const byParent = new Map();
+  for (const t of allTeams) {
+    const key = t.parent_id || 0;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(t);
+  }
+  const result = new Set();
+  (function walk(parentId) {
+    for (const t of (byParent.get(parentId) || [])) {
+      result.add(t.id);
+      walk(t.id);
+    }
+  })(id);
+  return result;
+}
+
 function requireFields(body, fields) {
   for (const f of fields) {
     if (body[f] === undefined || body[f] === null || body[f] === '') return f;
@@ -160,6 +180,22 @@ async function ensureAdminAccount() {
   console.log('==============================================');
 }
 
+// isUnderFootballDepartment() matcht per exaktem Namensvergleich - wird die
+// Abteilung ueber den "Abteilungen"-Tab umbenannt oder verschoben, bricht
+// der travel-expenses-Sync (syncFootballTeamId) danach still ab, ohne dass
+// das irgendwo auffaellt. Deshalb bei jedem Serverstart einmal pruefen und
+// notfalls in die Konsole warnen - kein UI-Element dafuer, um den Umfang
+// nicht auszuweiten (siehe CLAUDE.md).
+async function warnIfFootballDepartmentMissing() {
+  const [[row]] = await pool.query(
+    `SELECT id FROM ${SHARED_DB}.teams WHERE parent_id IS NULL AND name = ?`,
+    [FOOTBALL_DEPARTMENT_NAME]
+  );
+  if (!row) {
+    console.warn(`WARNUNG: Keine oberste Abteilung namens "${FOOTBALL_DEPARTMENT_NAME}" gefunden - der travel-expenses-Sync (syncFootballTeamId) findet dadurch nie ein Fussball-Team und tut nichts. Wurde die Abteilung umbenannt? Siehe FOOTBALL_DEPARTMENT_NAME in server.js.`);
+  }
+}
+
 // ── API-Router: GET (Lesevorgaenge) ─────────────────────────────────────
 
 app.get('/api', async (req, res) => {
@@ -210,19 +246,33 @@ app.get('/api', async (req, res) => {
         const [rows] = await pool.query(
           `SELECT p.id as player_id, p.salutation, p.first_name, p.last_name, p.email, p.phone,
                   p.birth_date,
-                  GROUP_CONCAT(DISTINCT t.name ORDER BY t.name SEPARATOR ', ') as team_names,
                   m.membership_number, m.status, m.joined_at, m.left_at,
                   mt.id as membership_type_id, mt.name as membership_type_name
            FROM ${SHARED_DB}.players p
-           LEFT JOIN ${SHARED_DB}.player_teams pt2 ON pt2.player_id = p.id
-           LEFT JOIN ${SHARED_DB}.teams t ON t.id = pt2.team_id
            LEFT JOIN memberships m ON m.player_id = p.id
            LEFT JOIN membership_types mt ON mt.id = m.membership_type_id
            ${whereSql}
-           GROUP BY p.id
            ORDER BY p.last_name, p.first_name`,
           params
         );
+
+        // Team-Zuordnung bewusst NICHT per GROUP_CONCAT(DISTINCT t.name)
+        // in derselben Query - teams.name ist nur je Elternknoten eindeutig
+        // (uniq_parent_name), zwei verschiedene Teams gleichen Namens in
+        // unterschiedlichen Abteilungen (z.B. "Erwachsene" bei Badminton
+        // UND Tischtennis) wuerden sonst durch DISTINCT-auf-Namen zu einem
+        // einzigen Eintrag zusammenfallen. Stattdessen ueber die (kleine)
+        // Teams-Liste den vollen Pfad je Team-ID bauen.
+        const [allTeams] = await pool.query(`SELECT id, name, parent_id FROM ${SHARED_DB}.teams`);
+        const [playerTeamRows] = await pool.query(`SELECT player_id, team_id FROM ${SHARED_DB}.player_teams`);
+        const teamsByPlayer = new Map();
+        for (const pt of playerTeamRows) {
+          if (!teamsByPlayer.has(pt.player_id)) teamsByPlayer.set(pt.player_id, []);
+          teamsByPlayer.get(pt.player_id).push(teamPath(allTeams, pt.team_id));
+        }
+        for (const row of rows) {
+          row.team_names = (teamsByPlayer.get(row.player_id) || []).sort().join(', ');
+        }
         return res.json(rows);
       }
 
@@ -348,14 +398,27 @@ app.post('/api', async (req, res) => {
         }
 
         // player_teams komplett ersetzen (einfaches "replace"-Muster,
-        // konsistent mit dem Rest dieses Endpunkts).
-        await pool.query(`DELETE FROM ${SHARED_DB}.player_teams WHERE player_id = ?`, [resolvedPlayerId]);
+        // konsistent mit dem Rest dieses Endpunkts) - in einer Transaktion,
+        // damit ein Fehler beim INSERT (z.B. ein zwischenzeitlich von einem
+        // anderen Admin geloeschtes Team) nicht die vorherige Zuordnung
+        // ersatzlos leert.
         const teamIdList = Array.isArray(teamIds) ? teamIds.map(Number).filter(Boolean) : [];
-        if (teamIdList.length) {
-          await pool.query(
-            `INSERT INTO ${SHARED_DB}.player_teams (player_id, team_id) VALUES ${teamIdList.map(() => '(?, ?)').join(', ')}`,
-            teamIdList.flatMap(tid => [resolvedPlayerId, tid])
-          );
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          await conn.query(`DELETE FROM ${SHARED_DB}.player_teams WHERE player_id = ?`, [resolvedPlayerId]);
+          if (teamIdList.length) {
+            await conn.query(
+              `INSERT INTO ${SHARED_DB}.player_teams (player_id, team_id) VALUES ${teamIdList.map(() => '(?, ?)').join(', ')}`,
+              teamIdList.flatMap(tid => [resolvedPlayerId, tid])
+            );
+          }
+          await conn.commit();
+        } catch (err) {
+          await conn.rollback();
+          throw err;
+        } finally {
+          conn.release();
         }
         await syncFootballTeamId(resolvedPlayerId, teamIdList);
 
@@ -408,26 +471,58 @@ app.post('/api', async (req, res) => {
         const missing = requireFields(req.body, ['name']);
         if (missing) return fail(res, `Feld "${missing}" erforderlich`);
 
+        const resolvedParentId = parentId ? Number(parentId) : null;
+
+        if (id && resolvedParentId) {
+          if (resolvedParentId === Number(id)) {
+            return fail(res, 'Ein Knoten kann nicht sein eigener Elternknoten sein');
+          }
+          const [allTeams] = await pool.query(`SELECT id, parent_id FROM ${SHARED_DB}.teams`);
+          if (getDescendantIds(allTeams, Number(id)).has(resolvedParentId)) {
+            return fail(res, 'Ein Knoten kann nicht unter einen eigenen Nachfahren verschoben werden');
+          }
+        }
+
+        // teams.name ist nur je Elternknoten eindeutig (uniq_parent_name),
+        // nicht global - MariaDB behandelt zwei NULL-Werte in einem Unique-
+        // Index als verschieden, daher wuerde der DB-Constraint zwei
+        // gleichnamige Abteilungen auf oberster Ebene NICHT verhindern.
+        // Deshalb hier zusaetzlich applikationsseitig pruefen.
+        const dupParams = [name, resolvedParentId];
+        let dupSql = `SELECT id FROM ${SHARED_DB}.teams WHERE name = ? AND parent_id <=> ?`;
+        if (id) { dupSql += ' AND id != ?'; dupParams.push(id); }
+        const [[duplicate]] = await pool.query(dupSql, dupParams);
+        if (duplicate) return fail(res, 'Auf dieser Ebene gibt es bereits einen Knoten mit diesem Namen');
+
         if (id) {
           await pool.query(
             `UPDATE ${SHARED_DB}.teams SET name=?, parent_id=?, active=? WHERE id=?`,
-            [name, parentId || null, active === false ? 0 : 1, id]
+            [name, resolvedParentId, active === false ? 0 : 1, id]
           );
           return res.json({ ok: true, id: Number(id) });
         }
         const [result] = await pool.query(
           `INSERT INTO ${SHARED_DB}.teams (name, parent_id, active) VALUES (?, ?, ?)`,
-          [name, parentId || null, active === false ? 0 : 1]
+          [name, resolvedParentId, active === false ? 0 : 1]
         );
         return res.json({ ok: true, id: result.insertId });
       }
 
       // Loescht rekursiv auch alle Unterknoten (ON DELETE CASCADE auf
-      // teams.parent_id) - Frontend warnt davor.
+      // teams.parent_id) - Frontend warnt davor. players.team_id (die
+      // travel-expenses-Spalte, siehe syncFootballTeamId) wird dabei
+      // explizit mitbereinigt, da die FK darauf KEIN ON DELETE CASCADE hat
+      // und sonst auf eine geloeschte Zeile zeigen wuerde.
       case 'team-delete': {
         const { id } = req.body;
         if (!id) return fail(res, 'id erforderlich');
+        const [allTeams] = await pool.query(`SELECT id, parent_id FROM ${SHARED_DB}.teams`);
+        const idsToClear = [Number(id), ...getDescendantIds(allTeams, Number(id))];
         await pool.query(`DELETE FROM ${SHARED_DB}.teams WHERE id = ?`, [id]);
+        await pool.query(
+          `UPDATE ${SHARED_DB}.players SET team_id = NULL WHERE team_id IN (${idsToClear.map(() => '?').join(',')})`,
+          idsToClear
+        );
         return res.json({ ok: true });
       }
 
@@ -600,6 +695,7 @@ async function start() {
   }
   await runSchemaMigrations();
   await ensureAdminAccount();
+  await warnIfFootballDepartmentMissing();
   app.listen(PORT, () => console.log(`Mitgliederverwaltung laeuft auf Port ${PORT}`));
 }
 

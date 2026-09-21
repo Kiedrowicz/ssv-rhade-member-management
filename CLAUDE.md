@@ -123,6 +123,22 @@ selbst (neue Spalte an `teams`, neue Tabelle `player_teams`) — die
 bisherige Rollenteilung "travel-expenses legt an, andere Apps lesen/nutzen
 nur" gilt also nicht mehr uneingeschränkt.
 
+**Backfill:** `db/00-schema.sql` übernimmt beim Serverstart einmalig (per
+`INSERT IGNORE`, also gefahrlos wiederholbar) alle bestehenden
+`players.team_id`-Werte nach `player_teams` — ohne das hätten alle vor
+dieser Erweiterung angelegten Mitglieder nach dem Deploy plötzlich ohne
+Team-Zuordnung dagestanden, weil `team_id` bis dahin der einzige Ort war,
+an dem diese Information stand.
+
+**Integritätsregeln beim Bearbeiten des Baums** (serverseitig in der
+`team`-Action durchgesetzt, nicht nur per DB-Constraint, da
+`uniq_parent_name` zwei `NULL`-Elternwerte nicht als gleich behandelt):
+Ein Knoten kann nicht unter sich selbst oder einen eigenen Nachfahren
+verschoben werden (Zyklus-Schutz), und zwei Knoten auf derselben Ebene
+dürfen nicht denselben Namen tragen. `team-delete` räumt zusätzlich
+`players.team_id` für alle gelöschten Knoten (inkl. kaskadierter
+Unterknoten) auf, da die FK darauf kein `ON DELETE CASCADE` hat.
+
 ## Beitragsverwaltung — Scope der ersten Version
 
 `membership_fees` bildet Beitragsfälligkeiten und Zahlungsstatus ab, aber
