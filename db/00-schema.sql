@@ -1,11 +1,13 @@
 -- SSV Rhade Mitgliederverwaltung – eigenes Schema.
 --
--- Enthaelt ausschliesslich "CREATE TABLE IF NOT EXISTS" (keine ALTER/INSERT/
--- DROP) und ist damit beliebig oft wiederholbar - wird bei jedem Serverstart
--- erneut ausgefuehrt (siehe runSchemaMigrations() in server.js), damit eine
--- neue Tabelle automatisch auf einer laufenden Produktions-DB nachgezogen
--- wird. Eine neue Spalte an einer bestehenden Tabelle braucht weiterhin ein
--- manuelles ALTER TABLE.
+-- Besteht ueberwiegend aus "CREATE TABLE IF NOT EXISTS" (keine DROP) und
+-- ist damit beliebig oft wiederholbar - wird bei jedem Serverstart erneut
+-- ausgefuehrt (siehe runSchemaMigrations() in server.js), damit eine neue
+-- Tabelle automatisch auf einer laufenden Produktions-DB nachgezogen wird.
+-- Ausnahme: die idempotent formulierten "ALTER TABLE ... IF NOT EXISTS"-
+-- Zeilen fuer ssv_shared_members.teams weiter unten (siehe dortiger
+-- Kommentar) - alle anderen Spaltenaenderungen an bestehenden Tabellen
+-- brauchen weiterhin ein manuelles, nicht wiederholtes ALTER TABLE.
 --
 -- Referenziert ssv_shared_members.players/.teams per datenbankuebergreifendem
 -- Fremdschluessel (MariaDB erlaubt das innerhalb desselben Servers) - siehe
@@ -63,6 +65,16 @@ CREATE TABLE IF NOT EXISTS ssv_shared_members.player_teams (
     FOREIGN KEY (team_id) REFERENCES ssv_shared_members.teams(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Backfill: bestehende players.team_id-Werte (von travel-expenses vor
+-- dieser Erweiterung gesetzt) als player_teams-Zeile uebernehmen, damit
+-- bereits vorhandene Mitglieder nach dem Deploy nicht ploetzlich ohne
+-- Team-Zuordnung dastehen (players.team_id war bislang der einzige Ort,
+-- an dem diese Information stand). INSERT IGNORE + PRIMARY KEY
+-- (player_id, team_id) macht das gefahrlos wiederholbar - laeuft bei
+-- jedem Serverstart, tut aber nach dem ersten Mal nichts mehr.
+INSERT IGNORE INTO ssv_shared_members.player_teams (player_id, team_id)
+  SELECT id, team_id FROM ssv_shared_members.players WHERE team_id IS NOT NULL;
 
 -- Beitragsklassen (z.B. Erwachsene, Jugend, Familie, Ehrenmitglied).
 CREATE TABLE IF NOT EXISTS ssv_member_management.membership_types (

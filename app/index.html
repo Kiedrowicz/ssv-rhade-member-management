@@ -438,7 +438,10 @@ function debouncedLoadMembers() {
 async function loadLookups() {
   teams = await api('teams');
   membershipTypes = await api('membership-types');
-  const teamOpts = flattenTeamTree(teams.filter(t => t.active))
+  // Erst den kompletten Baum durchwandern (damit ein aktives Kind unter
+  // einer inaktiven Abteilung nicht verloren geht), dann erst inaktive
+  // Knoten aus der ANZEIGE herausfiltern - nicht umgekehrt.
+  const teamOpts = flattenTeamTree(teams).filter(t => t.active)
     .map(t => `<option value="${t.id}">${'  '.repeat(t.depth)}${escapeHtml(t.name)}</option>`).join('');
   document.getElementById('filterTeam').innerHTML = '<option value="">Alle Teams</option>' + teamOpts;
   const typeOpts = membershipTypes.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
@@ -512,10 +515,15 @@ async function openMemberForm(playerId) {
 // besser bedienbar (siehe Mobile-Test-Erkenntnisse).
 function renderTeamPicker(selectedIds) {
   const selected = new Set(selectedIds.map(Number));
-  document.getElementById('mTeamsPicker').innerHTML = flattenTeamTree(teams).map(t => `
+  // Inaktive Teams sind fuer NEUE Zuordnungen ausgeblendet (analog zum
+  // Team-Filter in der Mitgliederliste) - ein bereits zugeordnetes,
+  // inzwischen inaktives Team bleibt aber sichtbar (markiert), damit es
+  // sich weiterhin abwaehlen laesst.
+  const visible = flattenTeamTree(teams).filter(t => t.active || selected.has(t.id));
+  document.getElementById('mTeamsPicker').innerHTML = visible.map(t => `
     <label style="padding-left:${t.depth * 18}px">
       <input type="checkbox" value="${t.id}" ${selected.has(t.id) ? 'checked' : ''}>
-      ${escapeHtml(t.name)}
+      ${escapeHtml(t.name)}${t.active ? '' : ' <span class="muted">(inaktiv)</span>'}
     </label>
   `).join('') || '<span class="muted">Noch keine Abteilungen angelegt.</span>';
 }
