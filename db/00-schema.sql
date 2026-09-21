@@ -35,6 +35,13 @@ ALTER TABLE ssv_shared_members.teams
 ALTER TABLE ssv_shared_members.teams
   ADD FOREIGN KEY IF NOT EXISTS fk_teams_parent (parent_id)
     REFERENCES ssv_shared_members.teams(id) ON DELETE CASCADE;
+-- teams.name war urspruenglich global eindeutig (flache Liste). In der
+-- Baumstruktur muss stattdessen nur der Name je Elternknoten eindeutig
+-- sein, sonst koennte es z.B. nicht sowohl unter Badminton als auch unter
+-- Tischtennis eine Untergruppe "Erwachsene" geben.
+ALTER TABLE ssv_shared_members.teams DROP INDEX IF EXISTS uniq_name;
+ALTER TABLE ssv_shared_members.teams
+  ADD UNIQUE INDEX IF NOT EXISTS uniq_parent_name (parent_id, name);
 
 -- Team-/Abteilungs-Mitgliedschaft (n:m - eine Person kann gleichzeitig in
 -- mehreren Teams/Abteilungen sein, z.B. Fussball UND Tischtennis). Liegt

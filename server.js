@@ -108,6 +108,37 @@ function requireFields(body, fields) {
   return null;
 }
 
+// Name der Fussball-Abteilung (oberste Ebene) - travel-expenses kennt nur
+// players.team_id (eine einzelne Spalte), nicht player_teams. Damit neue
+// oder umgezogene Fussball-Mitglieder trotzdem in travel-expenses sichtbar
+// bleiben, wird team_id best-effort mitgesetzt, siehe syncFootballTeamId()
+// unten und CLAUDE.md, Abschnitt "Abteilungen/Teams-Baumstruktur". Bei
+// Umbenennung der Abteilung hier anpassen.
+const FOOTBALL_DEPARTMENT_NAME = 'Fußball';
+
+function isUnderFootballDepartment(allTeams, teamId) {
+  const byId = new Map(allTeams.map(t => [t.id, t]));
+  let current = byId.get(teamId);
+  while (current) {
+    if (!current.parent_id && current.name === FOOTBALL_DEPARTMENT_NAME) return true;
+    current = current.parent_id ? byId.get(current.parent_id) : null;
+  }
+  return false;
+}
+
+// Best-effort-Sync fuer travel-expenses: wenn genau EIN zugeordnetes Team
+// unter der Fussball-Abteilung liegt, players.team_id darauf setzen. Bei
+// keiner oder mehreren Fussball-Zuordnungen bewusst nicht raten -
+// team_id bleibt unveraendert (kein automatisches Leeren/Ueberschreiben
+// bei Mehrdeutigkeit).
+async function syncFootballTeamId(playerId, teamIdList) {
+  const [allTeams] = await pool.query(`SELECT id, name, parent_id FROM ${SHARED_DB}.teams`);
+  const footballTeamIds = teamIdList.filter(tid => isUnderFootballDepartment(allTeams, tid));
+  if (footballTeamIds.length === 1) {
+    await pool.query(`UPDATE ${SHARED_DB}.players SET team_id = ? WHERE id = ?`, [footballTeamIds[0], playerId]);
+  }
+}
+
 // ── Admin-Bootstrap ──────────────────────────────────────────────────────
 
 async function ensureAdminAccount() {
@@ -326,6 +357,7 @@ app.post('/api', async (req, res) => {
             teamIdList.flatMap(tid => [resolvedPlayerId, tid])
           );
         }
+        await syncFootballTeamId(resolvedPlayerId, teamIdList);
 
         const [[existingMembership]] = await pool.query('SELECT status FROM memberships WHERE player_id = ?', [resolvedPlayerId]);
         await pool.query(

@@ -100,14 +100,22 @@ Admin-Dashboard gepflegt.
 Ein Mitglied kann gleichzeitig in mehreren Teams/Abteilungen sein (z.B.
 Fußball UND Tischtennis) — dafür gibt es die neue, ebenfalls in
 `ssv_shared_members` liegende Tabelle `player_teams` (n:m,
-Fremdschlüssel auf `players`/`teams`, `ON DELETE CASCADE`). **Bewusste
-Einschränkung:** `players.team_id` (die alte Einzel-Spalte, von
-travel-expenses gelesen/geschrieben) bleibt unverändert bestehen und wird
-von dieser App **nicht mehr gepflegt** — sie schreibt ausschließlich in
-`player_teams`. Für neue oder umgezogene Fußball-Mitglieder kann `team_id`
-dadurch von `player_teams` abweichen bzw. veralten; ein automatischer
-Abgleich zwischen beiden ist bewusst nicht Teil der Umsetzung (kein
-Cross-App-Sync ohne expliziten Auftrag).
+Fremdschlüssel auf `players`/`teams`, `ON DELETE CASCADE`).
+
+**Best-effort-Sync mit travel-expenses:** travel-expenses kennt nur
+`players.team_id` (eine einzelne Spalte), nicht `player_teams`. Damit neue
+oder umgezogene Fußball-Mitglieder trotzdem in travel-expenses' Spielerliste
+und Fahrtkostenabrechnung auftauchen, setzt `POST member`
+(`syncFootballTeamId()` in `server.js`) `team_id` automatisch mit, **wenn
+genau ein** zugeordnetes Team unterhalb der Abteilung "Fußball" liegt
+(Name als Konstante `FOOTBALL_DEPARTMENT_NAME` — bei Umbenennung der
+Abteilung dort anpassen). Bei keiner oder mehreren Fußball-Zuordnungen wird
+bewusst **nicht geraten** — `team_id` bleibt unverändert stehen, wird also
+insbesondere nie automatisch geleert. Das ist nur ein **einseitiger**
+Sync: Team-Änderungen, die jemand direkt in travel-expenses' eigener
+Oberfläche vornimmt, kommen nicht in `player_teams` an — dafür bräuchte es
+eine Änderung im travel-expenses-Repo selbst, das ist bewusst nicht Teil
+dieser Umsetzung.
 
 Mit dieser Erweiterung schreibt member-management erstmals nicht nur
 Zeilen in die gemeinsame Datenbank, sondern verändert dort auch das Schema
