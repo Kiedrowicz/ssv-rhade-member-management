@@ -101,6 +101,21 @@
 
   #loginScreen { max-width: 340px; margin: 12vh auto; }
   [hidden] { display: none !important; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(20,10,10,.5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 100;
+  }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 20px;
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.3);
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .modal .field label[data-checkbox] { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+  .modal .field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -253,6 +268,19 @@
       </div>
     </section>
   </main>
+
+  <!-- ── Generisches Modal (ersetzt prompt()-Ketten fuer Mehrfeld-Formulare) -->
+  <div id="modalOverlay" class="modal-overlay" hidden onclick="if (event.target === this) closeModal()">
+    <div class="modal">
+      <h3 id="modalTitle"></h3>
+      <div id="modalBody"></div>
+      <div id="modalError" class="error"></div>
+      <div class="modal-actions">
+        <button onclick="closeModal()">Abbrechen</button>
+        <button class="primary" onclick="modalSubmit()">Speichern</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -276,6 +304,49 @@ function queryFromBody(body) {
   for (const [k, v] of Object.entries(body)) if (v !== undefined && v !== null && v !== '') params.set(k, v);
   const s = params.toString();
   return s ? `&${s}` : '';
+}
+
+// ── Generisches Modal ──────────────────────────────────────────────────
+// Ersetzt Ketten aus prompt()-Aufrufen bei Mehrfeld-Formularen (Aemter,
+// Erziehungsberechtigte, Beitragsfaelligkeiten, Beitragsklassen,
+// Abteilungen/Teams) durch ein echtes, touch-freundliches Formular.
+// fields: [{ id, label, type: 'text'|'number'|'date'|'email'|'select'|'checkbox', value, options }]
+let modalSubmitHandler = null;
+function openModal(title, fields, onSubmit) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = fields.map(f => {
+    if (f.type === 'checkbox') {
+      return `<div class="field"><label data-checkbox><input type="checkbox" id="modal_${f.id}" ${f.value ? 'checked' : ''}> ${escapeHtml(f.label)}</label></div>`;
+    }
+    if (f.type === 'select') {
+      const opts = f.options.map(o => `<option value="${escapeHtml(String(o.value))}" ${String(o.value) === String(f.value ?? '') ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+      return `<div class="field"><label>${escapeHtml(f.label)}</label><select id="modal_${f.id}">${opts}</select></div>`;
+    }
+    return `<div class="field"><label>${escapeHtml(f.label)}</label><input id="modal_${f.id}" type="${f.type || 'text'}" value="${escapeHtml(f.value ?? '')}"></div>`;
+  }).join('');
+  document.getElementById('modalError').textContent = '';
+  document.getElementById('modalOverlay').hidden = false;
+  document.getElementById('modal_' + fields[0].id)?.focus();
+  modalSubmitHandler = async () => {
+    const values = {};
+    for (const f of fields) {
+      const el = document.getElementById('modal_' + f.id);
+      values[f.id] = f.type === 'checkbox' ? el.checked : el.value;
+    }
+    try {
+      await onSubmit(values);
+      closeModal();
+    } catch (err) {
+      document.getElementById('modalError').textContent = err.message;
+    }
+  };
+}
+function closeModal() {
+  document.getElementById('modalOverlay').hidden = true;
+  modalSubmitHandler = null;
+}
+async function modalSubmit() {
+  if (modalSubmitHandler) await modalSubmitHandler();
 }
 
 async function login() {
@@ -343,6 +414,20 @@ function flattenTeamTree(list) {
     }
   })(0, 0);
   return out;
+}
+// Alle Nachfahren-IDs eines Knotens - beim Verschieben (Eltern aendern)
+// muss man verhindern, dass ein Knoten unter einen eigenen Nachfahren
+// gehaengt wird (Zyklus im Baum).
+function getDescendantIds(list, id) {
+  const byParent = buildTeamChildren(list);
+  const result = new Set();
+  (function walk(parentId) {
+    for (const t of (byParent.get(parentId) || [])) {
+      result.add(t.id);
+      walk(t.id);
+    }
+  })(id);
+  return result;
 }
 
 function debouncedLoadMembers() {
@@ -480,11 +565,16 @@ function renderOffices(offices) {
     </div>
   `).join('') || '<div class="muted">Keine Ämter hinterlegt.</div>';
 }
-async function addOffice() {
-  const title = prompt('Bezeichnung des Amts (z.B. Trainer, Vorstand):');
-  if (!title) return;
-  await api('office', { method: 'POST', body: { playerId: currentPlayerId, title } });
-  await openMemberForm(currentPlayerId);
+function addOffice() {
+  openModal('Amt hinzufügen', [
+    { id: 'title', label: 'Bezeichnung (z.B. Trainer, Vorstand)' },
+    { id: 'validFrom', label: 'Gültig ab', type: 'date' },
+    { id: 'validUntil', label: 'Gültig bis', type: 'date' },
+  ], async v => {
+    if (!v.title.trim()) throw new Error('Bezeichnung erforderlich');
+    await api('office', { method: 'POST', body: { playerId: currentPlayerId, title: v.title.trim(), validFrom: v.validFrom, validUntil: v.validUntil } });
+    await openMemberForm(currentPlayerId);
+  });
 }
 async function deleteOffice(id) {
   if (!confirm('Amt wirklich löschen?')) return;
@@ -504,14 +594,18 @@ function renderGuardians(guardians) {
     </div>
   `).join('') || '<div class="muted">Keine Erziehungsberechtigten hinterlegt.</div>';
 }
-async function addGuardian() {
-  const firstName = prompt('Vorname:');
-  if (!firstName) return;
-  const lastName = prompt('Nachname:');
-  if (!lastName) return;
-  const relationship = prompt('Beziehung (z.B. Mutter, Vater):') || '';
-  await api('guardian', { method: 'POST', body: { playerId: currentPlayerId, firstName, lastName, relationship } });
-  await openMemberForm(currentPlayerId);
+function addGuardian() {
+  openModal('Erziehungsberechtigte Person hinzufügen', [
+    { id: 'firstName', label: 'Vorname' },
+    { id: 'lastName', label: 'Nachname' },
+    { id: 'relationship', label: 'Beziehung (z.B. Mutter, Vater)' },
+    { id: 'email', label: 'E-Mail', type: 'email' },
+    { id: 'phone', label: 'Telefon' },
+  ], async v => {
+    if (!v.firstName.trim() || !v.lastName.trim()) throw new Error('Vor- und Nachname erforderlich');
+    await api('guardian', { method: 'POST', body: { playerId: currentPlayerId, ...v } });
+    await openMemberForm(currentPlayerId);
+  });
 }
 async function deleteGuardian(id) {
   if (!confirm('Person wirklich löschen?')) return;
@@ -535,19 +629,25 @@ function renderFees(fees) {
     </div>
   `).join('') || '<div class="muted">Keine Beitragsfälligkeiten hinterlegt.</div>';
 }
-async function addFee() {
-  const year = prompt('Jahr:', new Date().getFullYear());
-  if (!year) return;
-  const amountDue = prompt('Betrag (€):');
-  if (!amountDue) return;
-  const dueDate = prompt('Fälligkeitsdatum (JJJJ-MM-TT):');
-  if (!dueDate) return;
-  await api('fee', { method: 'POST', body: { playerId: currentPlayerId, year, amountDue, dueDate } });
-  await openMemberForm(currentPlayerId);
+function addFee() {
+  openModal('Beitragsfälligkeit hinzufügen', [
+    { id: 'year', label: 'Jahr', type: 'number', value: new Date().getFullYear() },
+    { id: 'amountDue', label: 'Betrag (€)', type: 'number' },
+    { id: 'dueDate', label: 'Fälligkeitsdatum', type: 'date' },
+  ], async v => {
+    if (!v.year || !v.amountDue || !v.dueDate) throw new Error('Alle Felder erforderlich');
+    await api('fee', { method: 'POST', body: { playerId: currentPlayerId, ...v } });
+    await openMemberForm(currentPlayerId);
+  });
 }
-async function markFeePaid(id) {
-  await api('fee', { method: 'POST', body: { id, playerId: currentPlayerId, status: 'PAID', paidAt: new Date().toISOString().slice(0,10), amountDue: feeAmount(id), dueDate: feeDueDate(id) } });
-  await openMemberForm(currentPlayerId);
+function markFeePaid(id) {
+  openModal('Fälligkeit als bezahlt markieren', [
+    { id: 'paidAt', label: 'Bezahlt am', type: 'date', value: new Date().toISOString().slice(0, 10) },
+    { id: 'paymentMethod', label: 'Zahlungsart (optional)' },
+  ], async v => {
+    await api('fee', { method: 'POST', body: { id, playerId: currentPlayerId, status: 'PAID', paidAt: v.paidAt, paymentMethod: v.paymentMethod, amountDue: feeAmount(id), dueDate: feeDueDate(id) } });
+    await openMemberForm(currentPlayerId);
+  });
 }
 let lastFees = [];
 function feeAmount(id) { const f = lastFees.find(x => x.id === id); return f ? f.amount_due : 0; }
@@ -573,20 +673,33 @@ async function loadDepartments() {
     </div>
   `).join('') || '<p class="muted">Noch keine Abteilungen angelegt.</p>';
 }
-async function addTeamNode(parentId) {
-  const label = parentId ? 'Name des neuen Teams/der Untergruppe:' : 'Name der neuen Abteilung:';
-  const name = prompt(label);
-  if (!name) return;
-  await api('team', { method: 'POST', body: { name, parentId: parentId || undefined } });
-  await loadDepartments();
-  teams = await api('teams');
+function addTeamNode(parentId) {
+  openModal(parentId ? 'Team/Untergruppe anlegen' : 'Abteilung anlegen', [
+    { id: 'name', label: 'Name' },
+  ], async v => {
+    if (!v.name.trim()) throw new Error('Name erforderlich');
+    await api('team', { method: 'POST', body: { name: v.name.trim(), parentId: parentId || undefined } });
+    await loadDepartments();
+    teams = await api('teams');
+  });
 }
-async function editTeamNode(id) {
+function editTeamNode(id) {
   const node = teams.find(t => t.id === id);
-  const name = prompt('Neuer Name:', node?.name || '');
-  if (!name) return;
-  await api('team', { method: 'POST', body: { id, name, parentId: node?.parent_id || undefined, active: node?.active } });
-  await loadDepartments();
+  if (!node) return;
+  const excluded = new Set([id, ...getDescendantIds(teams, id)]);
+  const parentOptions = [
+    { value: '', label: '– (oberste Ebene / Abteilung)' },
+    ...flattenTeamTree(teams).filter(t => !excluded.has(t.id)).map(t => ({ value: t.id, label: '  '.repeat(t.depth) + t.name })),
+  ];
+  openModal('Abteilung/Team bearbeiten', [
+    { id: 'name', label: 'Name', value: node.name },
+    { id: 'parentId', label: 'Übergeordnet', type: 'select', value: node.parent_id || '', options: parentOptions },
+    { id: 'active', label: 'Aktiv', type: 'checkbox', value: !!node.active },
+  ], async v => {
+    if (!v.name.trim()) throw new Error('Name erforderlich');
+    await api('team', { method: 'POST', body: { id, name: v.name.trim(), parentId: v.parentId || undefined, active: v.active } });
+    await loadDepartments();
+  });
 }
 async function deleteTeamNode(id) {
   if (!confirm('Diese Abteilung/dieses Team löschen? Alle Unterteams werden mitgelöscht.')) return;
@@ -611,14 +724,21 @@ async function loadTypes() {
 function intervalLabel(i) {
   return { YEARLY: 'Jährlich', HALF_YEARLY: 'Halbjährlich', QUARTERLY: 'Quartalsweise', MONTHLY: 'Monatlich' }[i] || i;
 }
-async function openTypeForm(id) {
+function openTypeForm(id) {
   const existing = id ? membershipTypes.find(t => t.id === id) : null;
-  const name = prompt('Name der Beitragsklasse:', existing?.name || '');
-  if (!name) return;
-  const annualFee = prompt('Jahresbeitrag (€):', existing?.annual_fee || '0');
-  if (annualFee === null) return;
-  await api('membership-type', { method: 'POST', body: { id, name, annualFee, billingInterval: existing?.billing_interval || 'YEARLY' } });
-  await loadTypes();
+  openModal(id ? 'Beitragsklasse bearbeiten' : 'Neue Beitragsklasse', [
+    { id: 'name', label: 'Name', value: existing?.name || '' },
+    { id: 'annualFee', label: 'Jahresbeitrag (€)', type: 'number', value: existing?.annual_fee ?? '' },
+    { id: 'billingInterval', label: 'Intervall', type: 'select', value: existing?.billing_interval || 'YEARLY', options: [
+      { value: 'YEARLY', label: 'Jährlich' }, { value: 'HALF_YEARLY', label: 'Halbjährlich' },
+      { value: 'QUARTERLY', label: 'Quartalsweise' }, { value: 'MONTHLY', label: 'Monatlich' },
+    ] },
+    { id: 'active', label: 'Aktiv', type: 'checkbox', value: existing ? !!existing.active : true },
+  ], async v => {
+    if (!v.name.trim() || !v.annualFee) throw new Error('Name und Jahresbeitrag erforderlich');
+    await api('membership-type', { method: 'POST', body: { id, name: v.name.trim(), annualFee: v.annualFee, billingInterval: v.billingInterval, active: v.active } });
+    await loadTypes();
+  });
 }
 
 async function generateFees() {
