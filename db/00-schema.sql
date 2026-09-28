@@ -21,6 +21,14 @@
 CREATE DATABASE IF NOT EXISTS ssv_member_management
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- Zusaetzliche Personenfelder fuer die schlanke Mitgliederliste (Telefon-
+-- Prioritaetslogik Mobil vor Festnetz, optionaler Geschlecht-Filter) -
+-- rein additiv, travel-expenses kennt diese Spalten nicht und liest/
+-- schreibt weiterhin nur das bestehende "phone" (= Festnetz/Telefon 1).
+ALTER TABLE ssv_shared_members.players
+  ADD COLUMN IF NOT EXISTS gender ENUM('MALE','FEMALE','DIVERSE') DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS mobile_phone VARCHAR(30) DEFAULT NULL;
+
 -- Abteilungen/Teams als rekursive Baumstruktur (beliebige Tiefe, z.B.
 -- Fussball -> Jugend -> F1, oder Indoor -> Badminton -> Erwachsene). Rein
 -- additive Erweiterung von ssv_shared_members.teams (angelegt von
