@@ -128,6 +128,38 @@ function requireFields(body, fields) {
   return null;
 }
 
+// "Austritt vorgemerkt" ist bewusst kein eigener memberships.status-Wert,
+// sondern aus Status + Austrittsdatum abgeleitet: noch nicht TERMINATED,
+// aber left_at liegt in der Zukunft. Liegt left_at in der Vergangenheit
+// (Admin hat den Status nicht nachgezogen), gilt die Person trotzdem
+// schon als ausgetreten. Fuer die ANZEIGE (Status-Spalte/Badge) je Zeile.
+const EFFECTIVE_STATUS_SQL = `
+  CASE
+    WHEN m.status = 'TERMINATED' THEN 'TERMINATED'
+    WHEN m.left_at IS NOT NULL AND m.left_at <= CURDATE() THEN 'TERMINATED'
+    WHEN m.left_at IS NOT NULL AND m.left_at > CURDATE() THEN 'PENDING'
+    ELSE m.status
+  END
+`;
+
+// Der Status-FILTER ist bewusst NICHT deckungsgleich mit obigem
+// effective_status: "Austritt vorgemerkt" ist ein zusaetzlicher,
+// UEBERLAPPENDER Filter, keine eigene ausschliessende Kategorie - wer
+// noch aktiv ist, aber schon ein Austrittsdatum in der Zukunft hat, soll
+// im normalen Tagesbetrieb trotzdem unter "Aktiv" auftauchen (nur mit
+// Hinweis-Badge), sonst waere er im Alltag ploetzlich nicht mehr
+// auffindbar. Nur "Ausgetreten" schliesst tatsaechlich aus dem
+// Aktiv/Ruhend-Filter aus.
+function statusFilterSql(status) {
+  switch (status) {
+    case 'ACTIVE': return `m.status = 'ACTIVE'`;
+    case 'PAUSED': return `m.status = 'PAUSED'`;
+    case 'PENDING': return `m.status <> 'TERMINATED' AND m.left_at IS NOT NULL AND m.left_at > CURDATE()`;
+    case 'TERMINATED': return `(m.status = 'TERMINATED' OR (m.left_at IS NOT NULL AND m.left_at <= CURDATE()))`;
+    default: return null;
+  }
+}
+
 // Name der Fussball-Abteilung (oberste Ebene) - travel-expenses kennt nur
 // players.team_id (eine einzelne Spalte), nicht player_teams. Damit neue
 // oder umgezogene Fussball-Mitglieder trotzdem in travel-expenses sichtbar
@@ -228,29 +260,45 @@ app.get('/api', async (req, res) => {
         return res.json(rows);
       }
 
+      // Standard-Einstiegsseite: schlanke Liste mit kombinierbaren Filtern.
+      // Ausgetretene sind per Default (kein status-Parameter) NICHT dabei,
+      // siehe Frontend (filterStatus startet auf 'ACTIVE').
       case 'members': {
-        const { search, status, teamId } = req.query;
+        const { search, status, teamId, city, gender, ageFrom, ageTo, joinedFrom, joinedTo, leftFrom, leftTo } = req.query;
         const where = [];
         const params = [];
         if (search) {
-          where.push('(p.first_name LIKE ? OR p.last_name LIKE ? OR m.membership_number LIKE ?)');
-          params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+          where.push(`(p.first_name LIKE ? OR p.last_name LIKE ? OR m.membership_number LIKE ?
+            OR p.email LIKE ? OR p.phone LIKE ? OR p.mobile_phone LIKE ? OR p.city LIKE ?)`);
+          params.push(...Array(7).fill(`%${search}%`));
         }
-        if (status) { where.push('m.status = ?'); params.push(status); }
+        if (status) {
+          const statusSql = statusFilterSql(status);
+          if (statusSql) where.push(statusSql);
+        }
         if (teamId) {
-          where.push(`EXISTS (SELECT 1 FROM ${SHARED_DB}.player_teams pt WHERE pt.player_id = p.id AND pt.team_id = ?)`);
-          params.push(Number(teamId));
+          const [allTeamsForFilter] = await pool.query(`SELECT id, parent_id FROM ${SHARED_DB}.teams`);
+          const teamIdsIncludingDescendants = [Number(teamId), ...getDescendantIds(allTeamsForFilter, Number(teamId))];
+          where.push(`EXISTS (SELECT 1 FROM ${SHARED_DB}.player_teams pt WHERE pt.player_id = p.id AND pt.team_id IN (${teamIdsIncludingDescendants.map(() => '?').join(',')}))`);
+          params.push(...teamIdsIncludingDescendants);
         }
+        if (city) { where.push('p.city LIKE ?'); params.push(`%${city}%`); }
+        if (gender) { where.push('p.gender = ?'); params.push(gender); }
+        // Altersgrenzen in Geburtsdatums-Grenzen umrechnen statt das Alter
+        // je Zeile zu berechnen.
+        if (ageFrom) { where.push('p.birth_date <= DATE_SUB(CURDATE(), INTERVAL ? YEAR)'); params.push(Number(ageFrom)); }
+        if (ageTo) { where.push('p.birth_date > DATE_SUB(CURDATE(), INTERVAL ? YEAR)'); params.push(Number(ageTo) + 1); }
+        if (joinedFrom) { where.push('m.joined_at >= ?'); params.push(joinedFrom); }
+        if (joinedTo) { where.push('m.joined_at <= ?'); params.push(joinedTo); }
+        if (leftFrom) { where.push('m.left_at >= ?'); params.push(leftFrom); }
+        if (leftTo) { where.push('m.left_at <= ?'); params.push(leftTo); }
         const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
         const [rows] = await pool.query(
-          `SELECT p.id as player_id, p.salutation, p.first_name, p.last_name, p.email, p.phone,
-                  p.birth_date,
-                  m.membership_number, m.status, m.joined_at, m.left_at,
-                  mt.id as membership_type_id, mt.name as membership_type_name
+          `SELECT p.id as player_id, p.first_name, p.last_name, p.email, p.phone, p.mobile_phone, p.city,
+                  m.membership_number, m.left_at, (${EFFECTIVE_STATUS_SQL}) as effective_status
            FROM ${SHARED_DB}.players p
            LEFT JOIN memberships m ON m.player_id = p.id
-           LEFT JOIN membership_types mt ON mt.id = m.membership_type_id
            ${whereSql}
            ORDER BY p.last_name, p.first_name`,
           params
@@ -262,16 +310,17 @@ app.get('/api', async (req, res) => {
         // unterschiedlichen Abteilungen (z.B. "Erwachsene" bei Badminton
         // UND Tischtennis) wuerden sonst durch DISTINCT-auf-Namen zu einem
         // einzigen Eintrag zusammenfallen. Stattdessen ueber die (kleine)
-        // Teams-Liste den vollen Pfad je Team-ID bauen.
+        // Teams-Liste den vollen Pfad je Team-ID bauen und als Array
+        // zurueckgeben (Frontend rendert das als Tags/Pills).
         const [allTeams] = await pool.query(`SELECT id, name, parent_id FROM ${SHARED_DB}.teams`);
         const [playerTeamRows] = await pool.query(`SELECT player_id, team_id FROM ${SHARED_DB}.player_teams`);
         const teamsByPlayer = new Map();
         for (const pt of playerTeamRows) {
           if (!teamsByPlayer.has(pt.player_id)) teamsByPlayer.set(pt.player_id, []);
-          teamsByPlayer.get(pt.player_id).push(teamPath(allTeams, pt.team_id));
+          teamsByPlayer.get(pt.player_id).push({ id: pt.team_id, path: teamPath(allTeams, pt.team_id) });
         }
         for (const row of rows) {
-          row.team_names = (teamsByPlayer.get(row.player_id) || []).sort().join(', ');
+          row.teams = (teamsByPlayer.get(row.player_id) || []).sort((a, b) => a.path.localeCompare(b.path, 'de'));
         }
         return res.json(rows);
       }
@@ -369,7 +418,7 @@ app.post('/api', async (req, res) => {
 
         const {
           playerId, salutation, firstName, lastName, street, houseNumber, postalCode, city,
-          email, phone, birthDate, teamIds,
+          email, phone, mobilePhone, gender, birthDate, teamIds,
           membershipNumber, membershipTypeId, status, joinedAt, leftAt, notes,
         } = req.body;
 
@@ -382,17 +431,17 @@ app.post('/api', async (req, res) => {
         if (resolvedPlayerId) {
           await pool.query(
             `UPDATE ${SHARED_DB}.players SET salutation=?, first_name=?, last_name=?, street=?, house_number=?,
-               postal_code=?, city=?, email=?, phone=?, birth_date=? WHERE id=?`,
+               postal_code=?, city=?, email=?, phone=?, mobile_phone=?, gender=?, birth_date=? WHERE id=?`,
             [salutation || null, firstName, lastName, street || null, houseNumber || null, postalCode || null,
-             city || null, email || null, phone || null, birthDate || null, resolvedPlayerId]
+             city || null, email || null, phone || null, mobilePhone || null, gender || null, birthDate || null, resolvedPlayerId]
           );
         } else {
           const [result] = await pool.query(
             `INSERT INTO ${SHARED_DB}.players
-               (salutation, first_name, last_name, street, house_number, postal_code, city, email, phone, birth_date)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (salutation, first_name, last_name, street, house_number, postal_code, city, email, phone, mobile_phone, gender, birth_date)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [salutation || null, firstName, lastName, street || null, houseNumber || null, postalCode || null,
-             city || null, email || null, phone || null, birthDate || null]
+             city || null, email || null, phone || null, mobilePhone || null, gender || null, birthDate || null]
           );
           resolvedPlayerId = result.insertId;
         }

@@ -83,6 +83,21 @@
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
 
+  .more-filters { margin: 4px 0 14px; }
+  .more-filters summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: #7D1A1A; padding: 4px 0; list-style: revert; }
+  .filter-badge { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7D1A1A; margin-left: 4px; }
+
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: #7D1A1A; }
+  .sort-arrow { margin-left: 4px; font-size: 0.7em; }
+  .sort-arrow.asc::after { content: '▲'; }
+  .sort-arrow.desc::after { content: '▼'; }
+
+  .team-tag { display: inline-block; background: #f0e6e6; color: #7D1A1A; border-radius: 6px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; margin: 1px 3px 1px 0; white-space: nowrap; }
+  .status-note { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+  .status-note.PENDING { background: #fdf1d8; color: #9a6a10; }
+  .status-note.TERMINATED { background: #f2e2e2; color: #883535; }
+
   .team-picker { border: 1px solid #d7d7dc; border-radius: 8px; padding: 8px 10px; max-height: 260px; overflow-y: auto; background: #fff; }
   .team-picker label { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 0.85rem; color: #1a1a1a; padding: 6px 0; margin: 0; }
   .team-picker input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
@@ -151,24 +166,58 @@
       <div class="card">
         <div class="toolbar">
           <div class="row" style="flex:1">
-            <div class="field"><input id="filterSearch" placeholder="Suche: Name oder Mitgliedsnummer" oninput="debouncedLoadMembers()"></div>
-            <div class="field" style="max-width:160px">
+            <div class="field"><input id="filterSearch" placeholder="Mitglied suchen..." oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:170px">
               <select id="filterStatus" onchange="loadMembers()">
-                <option value="">Alle Status</option>
-                <option value="ACTIVE">Aktiv</option>
+                <option value="ACTIVE" selected>Aktiv</option>
                 <option value="PAUSED">Ruhend</option>
-                <option value="TERMINATED">Gekündigt</option>
+                <option value="PENDING">Austritt vorgemerkt</option>
+                <option value="TERMINATED">Ausgetreten</option>
+                <option value="">Alle</option>
               </select>
             </div>
-            <div class="field" style="max-width:200px">
-              <select id="filterTeam" onchange="loadMembers()"><option value="">Alle Teams</option></select>
+            <div class="field" style="max-width:220px">
+              <select id="filterTeam" onchange="loadMembers()"><option value="">Alle Abteilungen</option></select>
             </div>
           </div>
           <button class="primary" onclick="openMemberForm(null)">+ Neues Mitglied</button>
         </div>
+
+        <details class="more-filters">
+          <summary>Weitere Filter <span id="moreFiltersBadge" class="filter-badge" hidden></span></summary>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label>Ort</label><input id="filterCity" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:100px"><label>Alter von</label><input id="filterAgeFrom" type="number" min="0" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:100px"><label>Alter bis</label><input id="filterAgeTo" type="number" min="0" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:160px"><label>Geschlecht</label>
+              <select id="filterGender" onchange="loadMembers()">
+                <option value="">Alle</option>
+                <option value="MALE">Männlich</option>
+                <option value="FEMALE">Weiblich</option>
+                <option value="DIVERSE">Divers</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label>Eintritt von</label><input id="filterJoinedFrom" type="date" onchange="loadMembers()"></div>
+            <div class="field"><label>Eintritt bis</label><input id="filterJoinedTo" type="date" onchange="loadMembers()"></div>
+            <div class="field"><label>Austritt von</label><input id="filterLeftFrom" type="date" onchange="loadMembers()"></div>
+            <div class="field"><label>Austritt bis</label><input id="filterLeftTo" type="date" onchange="loadMembers()"></div>
+          </div>
+        </details>
+
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Team</th><th>Beitragsklasse</th><th>Mitgl.-Nr.</th><th>Status</th></tr></thead>
+            <thead><tr>
+              <th class="sortable" onclick="sortMembers('membership_number')">Mitgl.-Nr.<span class="sort-arrow" data-col="membership_number"></span></th>
+              <th class="sortable" onclick="sortMembers('last_name')">Nachname<span class="sort-arrow" data-col="last_name"></span></th>
+              <th class="sortable" onclick="sortMembers('first_name')">Vorname<span class="sort-arrow" data-col="first_name"></span></th>
+              <th>Abteilung/Gruppe</th>
+              <th class="sortable" onclick="sortMembers('city')">Ort<span class="sort-arrow" data-col="city"></span></th>
+              <th>Telefon</th>
+              <th>E-Mail</th>
+              <th></th>
+            </tr></thead>
             <tbody id="membersBody"></tbody>
           </table>
         </div>
@@ -190,6 +239,15 @@
           <div class="field"><label>Ort</label><input id="mCity"></div>
           <div class="field"><label>E-Mail</label><input id="mEmail" type="email"></div>
           <div class="field"><label>Telefon</label><input id="mPhone"></div>
+          <div class="field"><label>Mobiltelefon</label><input id="mMobilePhone"></div>
+          <div class="field"><label>Geschlecht</label>
+            <select id="mGender">
+              <option value="">–</option>
+              <option value="MALE">Männlich</option>
+              <option value="FEMALE">Weiblich</option>
+              <option value="DIVERSE">Divers</option>
+            </select>
+          </div>
           <div class="field"><label>Geburtsdatum</label><input id="mBirthDate" type="date"></div>
           <div class="field"><label>Mitgliedsnummer</label><input id="mMembershipNumber"></div>
           <div class="field"><label>Beitragsklasse</label><select id="mMembershipType"><option value="">–</option></select></div>
@@ -197,7 +255,7 @@
             <select id="mStatus">
               <option value="ACTIVE">Aktiv</option>
               <option value="PAUSED">Ruhend</option>
-              <option value="TERMINATED">Gekündigt</option>
+              <option value="TERMINATED">Ausgetreten</option>
             </select>
           </div>
           <div class="field"><label>Eintrittsdatum</label><input id="mJoinedAt" type="date"></div>
@@ -443,29 +501,84 @@ async function loadLookups() {
   // Knoten aus der ANZEIGE herausfiltern - nicht umgekehrt.
   const teamOpts = flattenTeamTree(teams).filter(t => t.active)
     .map(t => `<option value="${t.id}">${'  '.repeat(t.depth)}${escapeHtml(t.name)}</option>`).join('');
-  document.getElementById('filterTeam').innerHTML = '<option value="">Alle Teams</option>' + teamOpts;
+  document.getElementById('filterTeam').innerHTML = '<option value="">Alle Abteilungen</option>' + teamOpts;
   const typeOpts = membershipTypes.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   document.getElementById('mMembershipType').innerHTML = '<option value="">–</option>' + typeOpts;
 }
 
+let currentMembersRows = [];
+let membersSortColumn = 'last_name';
+let membersSortDir = 'asc';
+
 async function loadMembers() {
-  const search = document.getElementById('filterSearch').value.trim();
-  const status = document.getElementById('filterStatus').value;
-  const teamId = document.getElementById('filterTeam').value;
-  const rows = await api('members', { body: { search, status, teamId } });
-  document.getElementById('membersBody').innerHTML = rows.map(r => `
+  const filters = {
+    search: document.getElementById('filterSearch').value.trim(),
+    status: document.getElementById('filterStatus').value,
+    teamId: document.getElementById('filterTeam').value,
+    city: document.getElementById('filterCity').value.trim(),
+    gender: document.getElementById('filterGender').value,
+    ageFrom: document.getElementById('filterAgeFrom').value,
+    ageTo: document.getElementById('filterAgeTo').value,
+    joinedFrom: document.getElementById('filterJoinedFrom').value,
+    joinedTo: document.getElementById('filterJoinedTo').value,
+    leftFrom: document.getElementById('filterLeftFrom').value,
+    leftTo: document.getElementById('filterLeftTo').value,
+  };
+  // Badge am eingeklappten "Weitere Filter", damit der Filterzustand auch
+  // sichtbar bleibt, wenn die Sektion zugeklappt ist.
+  const { search, status, teamId, ...moreFilters } = filters;
+  document.getElementById('moreFiltersBadge').hidden = !Object.values(moreFilters).some(v => v);
+
+  currentMembersRows = await api('members', { body: filters });
+  renderMembersTable();
+}
+
+function sortMembers(column) {
+  membersSortDir = membersSortColumn === column && membersSortDir === 'asc' ? 'desc' : 'asc';
+  membersSortColumn = column;
+  renderMembersTable();
+}
+
+function renderMembersTable() {
+  const sorted = [...currentMembersRows].sort((a, b) => {
+    const cmp = String(a[membersSortColumn] ?? '').localeCompare(String(b[membersSortColumn] ?? ''), 'de', { numeric: true });
+    return membersSortDir === 'asc' ? cmp : -cmp;
+  });
+
+  document.querySelectorAll('.sort-arrow').forEach(el => {
+    el.classList.toggle('asc', el.dataset.col === membersSortColumn && membersSortDir === 'asc');
+    el.classList.toggle('desc', el.dataset.col === membersSortColumn && membersSortDir === 'desc');
+  });
+
+  document.getElementById('membersBody').innerHTML = sorted.map(r => `
     <tr class="clickable" onclick="openMemberForm(${r.player_id})">
-      <td>${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)}</td>
-      <td>${escapeHtml(r.team_names || '–')}</td>
-      <td>${escapeHtml(r.membership_type_name || '–')}</td>
       <td>${escapeHtml(r.membership_number || '–')}</td>
-      <td>${r.status ? `<span class="badge ${r.status}">${statusLabel(r.status)}</span>` : '<span class="muted">kein Mitglied</span>'}</td>
+      <td>${escapeHtml(r.last_name)}</td>
+      <td>${escapeHtml(r.first_name)}</td>
+      <td>${(r.teams || []).map(t => `<span class="team-tag">${escapeHtml(t.path)}</span>`).join('') || '<span class="muted">–</span>'}</td>
+      <td>${escapeHtml(r.city || '–')}</td>
+      <td>${escapeHtml(r.mobile_phone || r.phone || '–')}</td>
+      <td>${escapeHtml(r.email || '–')}</td>
+      <td>${statusNote(r)}</td>
     </tr>
-  `).join('') || '<tr><td colspan="5" class="muted">Keine Mitglieder gefunden.</td></tr>';
+  `).join('') || '<tr><td colspan="8" class="muted">Keine Mitglieder gefunden.</td></tr>';
+}
+
+// Nur Sonderfaelle hervorheben - ein normales aktives/ruhendes Mitglied
+// braucht keinen Stempel in jeder Zeile.
+function statusNote(r) {
+  if (r.effective_status === 'PENDING') return `<span class="status-note PENDING">Austritt ${formatDate(r.left_at)}</span>`;
+  if (r.effective_status === 'TERMINATED') return `<span class="status-note TERMINATED">Ausgetreten</span>`;
+  return '';
+}
+function formatDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}.${m}.${y}`;
 }
 
 function statusLabel(s) {
-  return { ACTIVE: 'Aktiv', PAUSED: 'Ruhend', TERMINATED: 'Gekündigt', OPEN: 'Offen', PAID: 'Bezahlt', OVERDUE: 'Überfällig' }[s] || s;
+  return { ACTIVE: 'Aktiv', PAUSED: 'Ruhend', TERMINATED: 'Ausgetreten', OPEN: 'Offen', PAID: 'Bezahlt', OVERDUE: 'Überfällig' }[s] || s;
 }
 
 async function openMemberForm(playerId) {
@@ -475,7 +588,7 @@ async function openMemberForm(playerId) {
   document.getElementById('detailSections').hidden = !playerId;
 
   for (const id of ['mSalutation','mFirstName','mLastName','mStreet','mHouseNumber','mPostalCode','mCity',
-    'mEmail','mPhone','mBirthDate','mMembershipNumber','mMembershipType','mJoinedAt','mLeftAt','mNotes']) {
+    'mEmail','mPhone','mMobilePhone','mGender','mBirthDate','mMembershipNumber','mMembershipType','mJoinedAt','mLeftAt','mNotes']) {
     document.getElementById(id).value = '';
   }
   document.getElementById('mStatus').value = 'ACTIVE';
@@ -493,6 +606,8 @@ async function openMemberForm(playerId) {
     document.getElementById('mCity').value = m.city || '';
     document.getElementById('mEmail').value = m.email || '';
     document.getElementById('mPhone').value = m.phone || '';
+    document.getElementById('mMobilePhone').value = m.mobile_phone || '';
+    document.getElementById('mGender').value = m.gender || '';
     document.getElementById('mBirthDate').value = m.birth_date || '';
     document.getElementById('mMembershipNumber').value = m.membership_number || '';
     document.getElementById('mMembershipType').value = m.membership_type_id || '';
@@ -544,6 +659,8 @@ async function saveMember() {
     city: document.getElementById('mCity').value.trim(),
     email: document.getElementById('mEmail').value.trim(),
     phone: document.getElementById('mPhone').value.trim(),
+    mobilePhone: document.getElementById('mMobilePhone').value.trim(),
+    gender: document.getElementById('mGender').value || undefined,
     birthDate: document.getElementById('mBirthDate').value || undefined,
     membershipNumber: document.getElementById('mMembershipNumber').value.trim(),
     membershipTypeId: document.getElementById('mMembershipType').value || undefined,
