@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "setup-vps": "node scripts/setup-vps.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -11,5 +12,8 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.22.5"
+  },
+  "devDependencies": {
+    "ssh2-sftp-client": "^12.1.1"
   }
 }
