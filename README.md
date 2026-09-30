@@ -52,37 +52,44 @@ mysql -h 127.0.0.1 -P 3308 -u ssv_members -p < db/01-seed-data.sql
 
 ## Produktion (VPS)
 
-Läuft auf demselben VPS wie travel-expenses und mail-sorter, hinter deren
-gemeinsamem zentralem Caddy (`/opt/ssv-caddy`, externes Docker-Netzwerk
-`ssv-shared`) unter `https://members.ssv-rhade.de`. Kein eigener
+Läuft unter `https://members.ssv-rhade.de` auf demselben VPS wie
+travel-expenses und mail-sorter, hinter deren gemeinsamem zentralem Caddy
+(`/opt/ssv-caddy`, externes Docker-Netzwerk `ssv-shared`). Kein eigener
 `mariadb`-Service — verbindet sich per Docker-DNS mit dem bereits
-laufenden `ssv-travel-mariadb`-Container.
+laufenden `ssv-travel-mariadb`-Container. DB-User `ssv_members` +
+Datenbank `ssv_member_management` sowie die Seed-Daten (Beitragsklassen,
+5 Abteilungen) sind dort bereits eingerichtet.
 
-Einmaliges Setup auf dem VPS (vor dem ersten `npm run setup-vps`):
+Redeploy nach Codeänderungen:
+```
+npm run setup-vps
+```
+Baut und startet den Container auf dem VPS neu, gleicht die gemeinsame
+Caddyfile ab (ergänzt/aktualisiert nur die eigene Route, verändert fremde
+Routen nicht, siehe `scripts/setup-vps.js`). Backup läuft über
+travel-expenses' nächtlichen Cron-Job mit (`ssv_member_management` liegt
+auf demselben MariaDB-Server).
+
+Voraussetzung dafür in der lokalen `.env`: `VPS_HOST`/`VPS_USER`/
+`VPS_PASSWORD` (derselbe VPS wie travel-expenses) sowie
+`VPS_DB_PASSWORD`/`VPS_JWT_SECRET` (Produktionswerte, **nicht** identisch
+mit den lokalen `DB_PASSWORD`/`JWT_SECRET` oben — siehe `.env.example`).
+
+**Einmaliges Setup bei einer komplett neuen Installation** (DB-User +
+Datenbank existieren noch nicht):
 ```
 mysql -h <VPS> -P 3306 -u root -p < scripts/grant-db-user.sql
 ```
 (Passwort darin zuvor anpassen, `DB_ROOT_PASSWORD` steht in
-`/opt/ssv-travel-expenses/.env` auf dem VPS.) Anschließend lokale `.env`
-um `VPS_HOST`/`VPS_USER`/`VPS_PASSWORD` (derselbe VPS wie travel-expenses)
-sowie `VPS_DB_PASSWORD`/`VPS_JWT_SECRET` (Produktionswerte, **nicht**
-identisch mit den lokalen `DB_PASSWORD`/`JWT_SECRET` oben — siehe
-`.env.example`) ergänzen, dann:
-```
-npm run setup-vps
-```
-Baut und startet den Container auf dem VPS, ergänzt die gemeinsame
-Caddyfile um die eigene Route (verändert fremde Routen nicht, siehe
-`scripts/setup-vps.js`). Backup läuft über travel-expenses' nächtlichen
-Cron-Job mit (`ssv_member_management` liegt auf demselben MariaDB-Server).
+`/opt/ssv-travel-expenses/.env` auf dem VPS.) Danach `db/01-seed-data.sql`
+einmalig gegen die VPS-DB einspielen (analog zur lokalen Anleitung oben).
 
-**Voraussetzung:** DNS-A-Record für `members.ssv-rhade.de` auf die
-VPS-IP muss existieren, sonst kann Caddy kein Let's-Encrypt-Zertifikat
-ausstellen.
-
-Seed-Daten (Beitragsklassen, 5 Abteilungen) müssen nach dem ersten Deploy
-einmalig separat gegen die VPS-DB eingespielt werden (siehe
-`db/01-seed-data.sql` oben, analog lokal).
+**Wichtig bei Datenänderungen direkt per SQL gegen die Produktions-DB**
+(z.B. Seed-Daten erneut einspielen): umgeht serverseitige Prüfungen wie
+die Duplikat-Namens-Kontrolle der `team`-Action — siehe CLAUDE.md,
+Abschnitt "Produktion (VPS)", für einen Vorfall, bei dem das zu einem
+doppelten Eintrag geführt hat. Datenänderungen nach Möglichkeit über die
+eigene API vornehmen.
 
 ## Aktueller Funktionsumfang
 

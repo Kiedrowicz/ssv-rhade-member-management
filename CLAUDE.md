@@ -139,6 +139,36 @@ dürfen nicht denselben Namen tragen. `team-delete` räumt zusätzlich
 `players.team_id` für alle gelöschten Knoten (inkl. kaskadierter
 Unterknoten) auf, da die FK darauf kein `ON DELETE CASCADE` hat.
 
+## Produktion (VPS)
+
+Läuft seit dem VPS-Deployment unter `https://members.ssv-rhade.de` auf
+demselben VPS wie travel-expenses und mail-sorter, hinter deren
+gemeinsamem zentralem Caddy (`/opt/ssv-caddy`, externes Docker-Netzwerk
+`ssv-shared`) — siehe `scripts/setup-vps.js` und README.md, Abschnitt
+"Produktion (VPS)". Kein eigener `mariadb`- oder `caddy`-Service dort.
+
+`setup-vps.js` ergänzt die gemeinsame Caddyfile additiv (eigener
+Domain-Block wird ersetzt/angehängt, fremde Blöcke bleiben unangetastet -
+`mergeCaddyBlock()`, 1:1 aus travel-expenses' `scripts/setup-vps.js`
+übernommen). Travel-expenses' Skript wurde dafür ebenfalls umgestellt
+(überschrieb die Caddyfile vorher komplett) — bei künftigen Änderungen an
+diesem Mechanismus beide Repos gegenprüfen, siehe travel-expenses'
+CLAUDE.md, Abschnitt "Gemeinsames Deployment mit mail-sorter".
+
+**Wichtige Lehre aus dem ersten Deployment:** Die auf dem VPS laufende
+`ssv_shared_members`-Datenbank ist unabhängig von der lokalen
+Dev-Datenbank — Schema-Migrationen (`db/00-schema.sql`) und konkrete
+Abteilungs-/Team-Daten müssen dort **separat** nachgezogen werden, ein
+lokal getesteter Fix wirkt sich nicht automatisch auf die Produktion aus
+(hat einmal kurz die "Mannschaften"-Funktion in travel-expenses auf der
+echten Produktion lahmgelegt, weil deren Filter-Query eine dort noch
+fehlende Spalte voraussetzte). Außerdem: Datenänderungen direkt per SQL
+gegen die Produktions-DB (statt über die App-API) umgehen serverseitige
+Prüfungen wie die Duplikat-Namens-Kontrolle in der `team`-Action — beim
+Einspielen der Seed-Daten ist dadurch einmal ein doppeltes "Fußball"
+entstanden. Nach Möglichkeit Datenänderungen über die eigene API laufen
+lassen, nicht per direktem SQL.
+
 ## Beitragsverwaltung — Scope der ersten Version
 
 `membership_fees` bildet Beitragsfälligkeiten und Zahlungsstatus ab, aber
