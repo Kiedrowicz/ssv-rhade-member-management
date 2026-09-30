@@ -4,6 +4,7 @@ import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
@@ -15,7 +16,10 @@ dotenv.config({ override: true });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.use(express.json());
+// 15mb statt Default (100kb), damit Mitgliedsbild-Uploads (Base64-kodiert)
+// nicht am Body-Limit scheitern - gleiches Muster wie travel-expenses'
+// Unterschriften-Upload.
+app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'app')));
 
 const PORT = process.env.PORT || 3000;
@@ -191,6 +195,34 @@ async function syncFootballTeamId(playerId, teamIdList) {
   }
 }
 
+// Kurzform eines verlinkten Mitglieds (Familie/Zahler/Betreuer) fuer die
+// Detailseite - genug fuer einen anklickbaren Chip (Name + Mitgl.-Nr.),
+// ohne den kompletten member-Datensatz nachzuladen.
+async function fetchMemberSummary(playerId) {
+  if (!playerId) return null;
+  const [[row]] = await pool.query(
+    `SELECT p.id, p.first_name, p.last_name, m.membership_number
+     FROM ${SHARED_DB}.players p LEFT JOIN memberships m ON m.player_id = p.id
+     WHERE p.id = ?`,
+    [playerId]
+  );
+  return row || null;
+}
+
+// Rueckwaertssuche: alle Mitglieder, deren memberships.<column> auf
+// playerId zeigt (z.B. "wer hat mich als Zahler hinterlegt"). column wird
+// nie aus Nutzereingaben befuellt (nur intern aus fest kodierten
+// Spaltennamen aufgerufen), daher unproblematisch trotz String-Interpolation.
+async function fetchMembersByMembershipColumn(column, playerId) {
+  const [rows] = await pool.query(
+    `SELECT p.id, p.first_name, p.last_name, m.membership_number
+     FROM memberships m JOIN ${SHARED_DB}.players p ON p.id = m.player_id
+     WHERE m.${column} = ? ORDER BY p.last_name, p.first_name`,
+    [playerId]
+  );
+  return rows;
+}
+
 // ── Admin-Bootstrap ──────────────────────────────────────────────────────
 
 async function ensureAdminAccount() {
@@ -257,6 +289,11 @@ app.get('/api', async (req, res) => {
 
       case 'membership-types': {
         const [rows] = await pool.query('SELECT * FROM membership_types ORDER BY name');
+        return res.json(rows);
+      }
+
+      case 'categories': {
+        const [rows] = await pool.query('SELECT * FROM categories ORDER BY name');
         return res.json(rows);
       }
 
@@ -332,6 +369,8 @@ app.get('/api', async (req, res) => {
         const [[player]] = await pool.query(
           `SELECT p.*,
                   m.membership_number, m.status, m.joined_at, m.left_at, m.notes,
+                  m.family_head_player_id, m.payer_player_id, m.supervisor_player_id,
+                  m.exit_reason, m.sync_outlook, m.do_not_dun,
                   mt.id as membership_type_id, mt.name as membership_type_name
            FROM ${SHARED_DB}.players p
            LEFT JOIN memberships m ON m.player_id = p.id
@@ -351,7 +390,47 @@ app.get('/api', async (req, res) => {
         const [allTeams] = await pool.query(`SELECT id, name, parent_id FROM ${SHARED_DB}.teams`);
         const teams = teamRows.map(t => ({ id: t.id, name: t.name, path: teamPath(allTeams, t.id) }));
 
-        return res.json({ ...player, offices, guardians, fees, teams });
+        const [[personalDetails]] = await pool.query('SELECT * FROM member_personal_details WHERE player_id = ?', [playerId]);
+        const [[paymentDetails]] = await pool.query('SELECT * FROM member_payment_details WHERE player_id = ?', [playerId]);
+        const [[mailingAddress]] = await pool.query('SELECT * FROM member_mailing_address WHERE player_id = ?', [playerId]);
+        const [[photoRow]] = await pool.query('SELECT player_id FROM member_photos WHERE player_id = ?', [playerId]);
+        const [honors] = await pool.query('SELECT * FROM member_honors WHERE player_id = ? ORDER BY honor_date DESC', [playerId]);
+        const [services] = await pool.query('SELECT * FROM member_services WHERE player_id = ? ORDER BY service_date DESC', [playerId]);
+        const [customFields] = await pool.query('SELECT * FROM member_custom_fields WHERE player_id = ? ORDER BY field_key', [playerId]);
+        const [categories] = await pool.query(
+          `SELECT c.id, c.name FROM member_categories mc JOIN categories c ON c.id = mc.category_id
+           WHERE mc.player_id = ? ORDER BY c.name`,
+          [playerId]
+        );
+
+        const [familyHead, payer, supervisor, familyMembers, payees] = await Promise.all([
+          fetchMemberSummary(player.family_head_player_id),
+          fetchMemberSummary(player.payer_player_id),
+          fetchMemberSummary(player.supervisor_player_id),
+          fetchMembersByMembershipColumn('family_head_player_id', playerId),
+          fetchMembersByMembershipColumn('payer_player_id', playerId),
+        ]);
+
+        return res.json({
+          ...player, offices, guardians, fees, teams,
+          personalDetails: personalDetails || null,
+          paymentDetails: paymentDetails || null,
+          mailingAddress: mailingAddress || null,
+          hasPhoto: !!photoRow,
+          honors, services, customFields, categories,
+          familyHead, payer, supervisor, familyMembers, payees,
+        });
+      }
+
+      // Binaer-Response (kein JSON) - Bild direkt als <img src> einbindbar.
+      case 'member-photo': {
+        const playerId = Number(req.query.playerId);
+        if (!playerId) return fail(res, 'playerId erforderlich');
+        const [[photo]] = await pool.query('SELECT image_data, content_type FROM member_photos WHERE player_id = ?', [playerId]);
+        if (!photo) return fail(res, 'Kein Bild hinterlegt', 404);
+        res.set('Content-Type', photo.content_type);
+        res.set('Cache-Control', 'private, max-age=300');
+        return res.send(photo.image_data);
       }
 
       default:
@@ -420,6 +499,8 @@ app.post('/api', async (req, res) => {
           playerId, salutation, firstName, lastName, street, houseNumber, postalCode, city,
           email, phone, mobilePhone, gender, birthDate, teamIds,
           membershipNumber, membershipTypeId, status, joinedAt, leftAt, notes,
+          familyHeadPlayerId, payerPlayerId, supervisorPlayerId, exitReason, syncOutlook, doNotDun,
+          personalDetails, paymentDetails, mailingAddress,
         } = req.body;
 
         let resolvedPlayerId = playerId ? Number(playerId) : null;
@@ -473,12 +554,18 @@ app.post('/api', async (req, res) => {
 
         const [[existingMembership]] = await pool.query('SELECT status FROM memberships WHERE player_id = ?', [resolvedPlayerId]);
         await pool.query(
-          `INSERT INTO memberships (player_id, membership_number, membership_type_id, status, joined_at, left_at, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO memberships (player_id, membership_number, membership_type_id, status, joined_at, left_at, notes,
+             family_head_player_id, payer_player_id, supervisor_player_id, exit_reason, sync_outlook, do_not_dun)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE membership_number=VALUES(membership_number), membership_type_id=VALUES(membership_type_id),
-             status=VALUES(status), joined_at=VALUES(joined_at), left_at=VALUES(left_at), notes=VALUES(notes)`,
+             status=VALUES(status), joined_at=VALUES(joined_at), left_at=VALUES(left_at), notes=VALUES(notes),
+             family_head_player_id=VALUES(family_head_player_id), payer_player_id=VALUES(payer_player_id),
+             supervisor_player_id=VALUES(supervisor_player_id), exit_reason=VALUES(exit_reason),
+             sync_outlook=VALUES(sync_outlook), do_not_dun=VALUES(do_not_dun)`,
           [resolvedPlayerId, membershipNumber || null, membershipTypeId || null, status || 'ACTIVE',
-           joinedAt || null, leftAt || null, notes || null]
+           joinedAt || null, leftAt || null, notes || null,
+           familyHeadPlayerId || null, payerPlayerId || null, supervisorPlayerId || null,
+           exitReason || null, syncOutlook ? 1 : 0, doNotDun ? 1 : 0]
         );
 
         if (existingMembership && existingMembership.status !== (status || 'ACTIVE')) {
@@ -486,6 +573,66 @@ app.post('/api', async (req, res) => {
             userAccountId: req.user.userAccountId, tableName: 'memberships', recordId: resolvedPlayerId,
             fieldName: 'status', oldValue: existingMembership.status, newValue: status || 'ACTIVE',
           });
+        }
+
+        // Persoenliche Zusatzdaten / Zahlungsdaten - 1:1-Tabellen, immer
+        // upserten wenn das Frontend das jeweilige Objekt mitschickt (auch
+        // mit ausschliesslich leeren Feldern, das loescht dann effektiv den
+        // Inhalt statt die Zeile stehen zu lassen).
+        if (personalDetails && typeof personalDetails === 'object') {
+          await pool.query(
+            `INSERT INTO member_personal_details (player_id, title, name_suffix, marital_status, debtor_number, birth_place, fax, website, country)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE title=VALUES(title), name_suffix=VALUES(name_suffix), marital_status=VALUES(marital_status),
+               debtor_number=VALUES(debtor_number), birth_place=VALUES(birth_place), fax=VALUES(fax), website=VALUES(website),
+               country=VALUES(country)`,
+            [resolvedPlayerId, personalDetails.title || null, personalDetails.nameSuffix || null,
+             personalDetails.maritalStatus || null, personalDetails.debtorNumber || null,
+             personalDetails.birthPlace || null, personalDetails.fax || null, personalDetails.website || null,
+             personalDetails.country || null]
+          );
+        }
+
+        if (paymentDetails && typeof paymentDetails === 'object') {
+          await pool.query(
+            `INSERT INTO member_payment_details (player_id, iban, bic, account_number, bank_code, bank_name, account_holder,
+               mandate_reference, mandate_date, mandate_status, payment_method, payment_interval, payment_day, due_after_days,
+               next_booking_note, legacy_fee_rate_label, legacy_fee_label_1, legacy_fee_label_2, legacy_fee_label_3, legacy_fee_label_4)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE iban=VALUES(iban), bic=VALUES(bic), account_number=VALUES(account_number),
+               bank_code=VALUES(bank_code), bank_name=VALUES(bank_name), account_holder=VALUES(account_holder),
+               mandate_reference=VALUES(mandate_reference), mandate_date=VALUES(mandate_date), mandate_status=VALUES(mandate_status),
+               payment_method=VALUES(payment_method), payment_interval=VALUES(payment_interval), payment_day=VALUES(payment_day),
+               due_after_days=VALUES(due_after_days), next_booking_note=VALUES(next_booking_note),
+               legacy_fee_rate_label=VALUES(legacy_fee_rate_label), legacy_fee_label_1=VALUES(legacy_fee_label_1),
+               legacy_fee_label_2=VALUES(legacy_fee_label_2), legacy_fee_label_3=VALUES(legacy_fee_label_3),
+               legacy_fee_label_4=VALUES(legacy_fee_label_4)`,
+            [resolvedPlayerId, paymentDetails.iban || null, paymentDetails.bic || null, paymentDetails.accountNumber || null,
+             paymentDetails.bankCode || null, paymentDetails.bankName || null, paymentDetails.accountHolder || null,
+             paymentDetails.mandateReference || null, paymentDetails.mandateDate || null, paymentDetails.mandateStatus || null,
+             paymentDetails.paymentMethod || null, paymentDetails.paymentInterval || null, paymentDetails.paymentDay || null,
+             paymentDetails.dueAfterDays || null, paymentDetails.nextBookingNote || null,
+             paymentDetails.legacyFeeRateLabel || null, paymentDetails.legacyFeeLabel1 || null,
+             paymentDetails.legacyFeeLabel2 || null, paymentDetails.legacyFeeLabel3 || null, paymentDetails.legacyFeeLabel4 || null]
+          );
+        }
+
+        // Abweichende Postanschrift ist optional - ein explizit auf null
+        // gesetztes mailingAddress (Checkbox "abweichende Anschrift"
+        // deaktiviert) loescht die Zeile wieder, statt sie mit leeren
+        // Feldern stehen zu lassen.
+        if (mailingAddress === null) {
+          await pool.query('DELETE FROM member_mailing_address WHERE player_id = ?', [resolvedPlayerId]);
+        } else if (mailingAddress && typeof mailingAddress === 'object') {
+          await pool.query(
+            `INSERT INTO member_mailing_address (player_id, recipient, street, house_number, postal_code, city, country)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE recipient=VALUES(recipient), street=VALUES(street), house_number=VALUES(house_number),
+               postal_code=VALUES(postal_code), city=VALUES(city), country=VALUES(country)`,
+            [resolvedPlayerId, mailingAddress.recipient || null, mailingAddress.street || null,
+             mailingAddress.houseNumber || null, mailingAddress.postalCode || null,
+             mailingAddress.city || null, mailingAddress.country || null]
+          );
         }
 
         return res.json({ ok: true, playerId: resolvedPlayerId });
@@ -665,6 +812,135 @@ app.post('/api', async (req, res) => {
         const { id } = req.body;
         if (!id) return fail(res, 'id erforderlich');
         await pool.query('DELETE FROM membership_fees WHERE id = ?', [id]);
+        return res.json({ ok: true });
+      }
+
+      case 'honor': {
+        const { id, playerId, title, honorDate, note } = req.body;
+        const missing = requireFields(req.body, ['playerId', 'title']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+
+        if (id) {
+          await pool.query('UPDATE member_honors SET title=?, honor_date=?, note=? WHERE id=?', [title, honorDate || null, note || null, id]);
+          return res.json({ ok: true, id: Number(id) });
+        }
+        const [result] = await pool.query(
+          'INSERT INTO member_honors (player_id, title, honor_date, note) VALUES (?, ?, ?, ?)',
+          [Number(playerId), title, honorDate || null, note || null]
+        );
+        return res.json({ ok: true, id: result.insertId });
+      }
+
+      case 'honor-delete': {
+        const { id } = req.body;
+        if (!id) return fail(res, 'id erforderlich');
+        await pool.query('DELETE FROM member_honors WHERE id = ?', [id]);
+        return res.json({ ok: true });
+      }
+
+      case 'service': {
+        const { id, playerId, label, note, serviceDate } = req.body;
+        const missing = requireFields(req.body, ['playerId', 'label']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+
+        if (id) {
+          await pool.query('UPDATE member_services SET label=?, note=?, service_date=? WHERE id=?', [label, note || null, serviceDate || null, id]);
+          return res.json({ ok: true, id: Number(id) });
+        }
+        const [result] = await pool.query(
+          'INSERT INTO member_services (player_id, label, note, service_date) VALUES (?, ?, ?, ?)',
+          [Number(playerId), label, note || null, serviceDate || null]
+        );
+        return res.json({ ok: true, id: result.insertId });
+      }
+
+      case 'service-delete': {
+        const { id } = req.body;
+        if (!id) return fail(res, 'id erforderlich');
+        await pool.query('DELETE FROM member_services WHERE id = ?', [id]);
+        return res.json({ ok: true });
+      }
+
+      case 'custom-field': {
+        const { id, playerId, fieldKey, fieldValue } = req.body;
+        const missing = requireFields(req.body, ['playerId', 'fieldKey']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+
+        if (id) {
+          await pool.query('UPDATE member_custom_fields SET field_key=?, field_value=? WHERE id=?', [fieldKey, fieldValue || null, id]);
+          return res.json({ ok: true, id: Number(id) });
+        }
+        const [result] = await pool.query(
+          'INSERT INTO member_custom_fields (player_id, field_key, field_value) VALUES (?, ?, ?)',
+          [Number(playerId), fieldKey, fieldValue || null]
+        );
+        return res.json({ ok: true, id: result.insertId });
+      }
+
+      case 'custom-field-delete': {
+        const { id } = req.body;
+        if (!id) return fail(res, 'id erforderlich');
+        await pool.query('DELETE FROM member_custom_fields WHERE id = ?', [id]);
+        return res.json({ ok: true });
+      }
+
+      // Neue Kategorie (Tag) anlegen - einzige Rolle ist ADMIN, daher keine
+      // zusaetzliche Berechtigungspruefung noetig.
+      case 'category': {
+        const { name } = req.body;
+        const missing = requireFields(req.body, ['name']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+        const [result] = await pool.query('INSERT IGNORE INTO categories (name) VALUES (?)', [name]);
+        if (result.insertId) return res.json({ ok: true, id: result.insertId });
+        const [[existing]] = await pool.query('SELECT id FROM categories WHERE name = ?', [name]);
+        return res.json({ ok: true, id: existing.id });
+      }
+
+      // Einzelne Kategorie-Zuweisung hinzufuegen/entfernen (kein Bulk-
+      // Replace wie bei teamIds, da die Anforderung explizit "hinzufuegen"/
+      // "entfernen" als Einzelaktionen vorsieht).
+      case 'member-category': {
+        const { playerId, categoryId } = req.body;
+        const missing = requireFields(req.body, ['playerId', 'categoryId']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+        await pool.query('INSERT IGNORE INTO member_categories (player_id, category_id) VALUES (?, ?)', [Number(playerId), Number(categoryId)]);
+        return res.json({ ok: true });
+      }
+
+      case 'member-category-delete': {
+        const { playerId, categoryId } = req.body;
+        const missing = requireFields(req.body, ['playerId', 'categoryId']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+        await pool.query('DELETE FROM member_categories WHERE player_id = ? AND category_id = ?', [Number(playerId), Number(categoryId)]);
+        return res.json({ ok: true });
+      }
+
+      // Mitgliedsbild hochladen/ersetzen - Base64-Body, serverseitig auf
+      // 500x500px verkleinert/komprimiert (siehe CLAUDE.md, Abschnitt
+      // "Mitgliedsbild"), dann als BLOB gespeichert.
+      case 'member-photo': {
+        const { playerId, imageBase64 } = req.body;
+        const missing = requireFields(req.body, ['playerId', 'imageBase64']);
+        if (missing) return fail(res, `Feld "${missing}" erforderlich`);
+
+        const inputBuffer = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+        const outputBuffer = await sharp(inputBuffer)
+          .resize(500, 500, { fit: 'cover' })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        await pool.query(
+          `INSERT INTO member_photos (player_id, image_data, content_type) VALUES (?, ?, 'image/jpeg')
+           ON DUPLICATE KEY UPDATE image_data = VALUES(image_data), content_type = VALUES(content_type)`,
+          [Number(playerId), outputBuffer]
+        );
+        return res.json({ ok: true });
+      }
+
+      case 'member-photo-delete': {
+        const { playerId } = req.body;
+        if (!playerId) return fail(res, 'playerId erforderlich');
+        await pool.query('DELETE FROM member_photos WHERE player_id = ?', [Number(playerId)]);
         return res.json({ ok: true });
       }
 

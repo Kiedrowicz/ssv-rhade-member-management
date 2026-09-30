@@ -177,6 +177,183 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.membership_fees (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Erweiterung von memberships um Familie/Zahler/Betreuer-Verknuepfungen
+-- (jeweils Verweis auf ein anderes Mitglied) sowie ein paar weitere aus
+-- Sage uebernommene Einzelfelder - rein additiv, siehe CLAUDE.md Abschnitt
+-- "Mitgliedsdetailseite (Sage-Uebernahme)". "ADD CONSTRAINT IF NOT EXISTS
+-- ... FOREIGN KEY" ist in MariaDB 10.11 ungueltig, daher ohne CONSTRAINT-
+-- Keyword (gleiches Muster wie bei teams.parent_id oben).
+ALTER TABLE ssv_member_management.memberships
+  ADD COLUMN IF NOT EXISTS family_head_player_id INT UNSIGNED DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS payer_player_id INT UNSIGNED DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS supervisor_player_id INT UNSIGNED DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS exit_reason VARCHAR(255) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS sync_outlook TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS do_not_dun TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE ssv_member_management.memberships
+  ADD FOREIGN KEY IF NOT EXISTS fk_memberships_family_head (family_head_player_id)
+    REFERENCES ssv_shared_members.players(id) ON DELETE SET NULL;
+ALTER TABLE ssv_member_management.memberships
+  ADD FOREIGN KEY IF NOT EXISTS fk_memberships_payer (payer_player_id)
+    REFERENCES ssv_shared_members.players(id) ON DELETE SET NULL;
+ALTER TABLE ssv_member_management.memberships
+  ADD FOREIGN KEY IF NOT EXISTS fk_memberships_supervisor (supervisor_player_id)
+    REFERENCES ssv_shared_members.players(id) ON DELETE SET NULL;
+
+-- Weitere Sage-Stammdatenfelder, die nicht in players/memberships passen
+-- (1:1 je Person). Bewusst eine eigene Tabelle statt weiterer Spalten an
+-- memberships, da rein persoenliche (nicht mitgliedschaftsbezogene) Daten.
+-- country lebt bewusst hier (nicht auf ssv_shared_members.players), obwohl
+-- es inhaltlich zur Hauptadresse gehoert - travel-expenses kennt/braucht
+-- kein Land, es ist reine Mitgliederverwaltungs-Zusatzinformation (siehe
+-- CLAUDE.md-Trennungsregel).
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_personal_details (
+  player_id      INT UNSIGNED PRIMARY KEY,
+  title          VARCHAR(50) DEFAULT NULL,
+  name_suffix    VARCHAR(50) DEFAULT NULL,
+  marital_status VARCHAR(50) DEFAULT NULL,
+  debtor_number  VARCHAR(50) DEFAULT NULL,
+  birth_place    VARCHAR(150) DEFAULT NULL,
+  fax            VARCHAR(30) DEFAULT NULL,
+  website        VARCHAR(255) DEFAULT NULL,
+  country        VARCHAR(100) DEFAULT NULL,
+  updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_personal_details_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Zahlungsdaten (Bankverbindung, SEPA, Zahlart/-intervall/-termin) - 1:1 je
+-- Person. legacy_fee_rate_label/legacy_fee_label_1..4 sind unveraendert aus
+-- Sage uebernommene Freitextfelder ("Beitragssatz", "Bez.-Beitrag01-04"),
+-- deren genaue fachliche Bedeutung noch nicht abschliessend geklaert ist -
+-- bewusst nicht interpretiert oder umbenannt, nur mitgefuehrt (siehe
+-- CLAUDE.md).
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_payment_details (
+  player_id             INT UNSIGNED PRIMARY KEY,
+  iban                  VARCHAR(34) DEFAULT NULL,
+  bic                   VARCHAR(11) DEFAULT NULL,
+  account_number        VARCHAR(30) DEFAULT NULL,
+  bank_code             VARCHAR(30) DEFAULT NULL,
+  bank_name             VARCHAR(150) DEFAULT NULL,
+  account_holder        VARCHAR(150) DEFAULT NULL,
+  mandate_reference     VARCHAR(100) DEFAULT NULL,
+  mandate_date          DATE DEFAULT NULL,
+  mandate_status        VARCHAR(50) DEFAULT NULL,
+  payment_method        VARCHAR(50) DEFAULT NULL,
+  payment_interval      VARCHAR(50) DEFAULT NULL,
+  payment_day           TINYINT UNSIGNED DEFAULT NULL,
+  due_after_days        SMALLINT UNSIGNED DEFAULT NULL,
+  next_booking_note     VARCHAR(255) DEFAULT NULL,
+  legacy_fee_rate_label VARCHAR(150) DEFAULT NULL,
+  legacy_fee_label_1    VARCHAR(150) DEFAULT NULL,
+  legacy_fee_label_2    VARCHAR(150) DEFAULT NULL,
+  legacy_fee_label_3    VARCHAR(150) DEFAULT NULL,
+  legacy_fee_label_4    VARCHAR(150) DEFAULT NULL,
+  updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_payment_details_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Abweichende Postanschrift (1:1 je Person, optional - Zeile existiert nur,
+-- wenn tatsaechlich eine abweichende Anschrift gepflegt wurde).
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_mailing_address (
+  player_id    INT UNSIGNED PRIMARY KEY,
+  recipient    VARCHAR(255) DEFAULT NULL,
+  street       VARCHAR(150) DEFAULT NULL,
+  house_number VARCHAR(20) DEFAULT NULL,
+  postal_code  VARCHAR(10) DEFAULT NULL,
+  city         VARCHAR(150) DEFAULT NULL,
+  country      VARCHAR(100) DEFAULT NULL,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_mailing_address_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mitgliedsbild (1:1 je Person, optional). Als Blob in der eigenen DB
+-- gespeichert statt als Datei im Container-Dateisystem - kein eigenes
+-- Docker-Volume noetig, laeuft im bestehenden naechtlichen Backup mit.
+-- Bilder werden serverseitig vor dem Speichern per sharp auf 500x500px
+-- komprimiert (siehe server.js), daher MEDIUMBLOB (bis 16MB) ausreichend
+-- dimensioniert.
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_photos (
+  player_id    INT UNSIGNED PRIMARY KEY,
+  image_data   MEDIUMBLOB NOT NULL,
+  content_type VARCHAR(100) NOT NULL,
+  updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_photos_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ehrungen (1:n je Person).
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_honors (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  player_id  INT UNSIGNED NOT NULL,
+  title      VARCHAR(255) NOT NULL,
+  honor_date DATE DEFAULT NULL,
+  note       VARCHAR(500) DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_player (player_id),
+  CONSTRAINT fk_honors_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Leistungen (1:n je Person) - generische Liste, da die genauen aus Sage
+-- bekannten Unterfelder noch nicht bekannt sind (siehe CLAUDE.md).
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_services (
+  id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  player_id    INT UNSIGNED NOT NULL,
+  label        VARCHAR(255) NOT NULL,
+  note         VARCHAR(500) DEFAULT NULL,
+  service_date DATE DEFAULT NULL,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_player (player_id),
+  CONSTRAINT fk_services_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Eigene Felder (1:n je Person) - echte Key-Value-Struktur, absichtlich
+-- nicht im Frontend hartkodiert, da vereinsseitig frei erweiterbar.
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_custom_fields (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  player_id   INT UNSIGNED NOT NULL,
+  field_key   VARCHAR(150) NOT NULL,
+  field_value VARCHAR(1000) DEFAULT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_player (player_id),
+  CONSTRAINT fk_custom_fields_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Kategorien (flache Tags, bewusst nicht Teil der Abteilungs-Baumstruktur -
+-- Sage-Kategorien sind historisch flach, z.B. "Alte Herren" und "Fussball"
+-- sind dort unabhaengige, gleichrangige Tags statt Eltern/Kind).
+CREATE TABLE IF NOT EXISTS ssv_member_management.categories (
+  id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  UNIQUE KEY uniq_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_categories (
+  player_id   INT UNSIGNED NOT NULL,
+  category_id INT UNSIGNED NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (player_id, category_id),
+  CONSTRAINT fk_member_categories_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_member_categories_category
+    FOREIGN KEY (category_id) REFERENCES ssv_member_management.categories(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Admin-Login. Analog travel-expenses' user_accounts, aber ohne player_id-
 -- Verknuepfung fuer Mitglieder-Self-Service - das ist bewusst nicht Teil
 -- dieser ersten Version (siehe CLAUDE.md).

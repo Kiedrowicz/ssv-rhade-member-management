@@ -20,3 +20,21 @@ INSERT IGNORE INTO ssv_shared_members.teams (name, parent_id) VALUES
   ('Fußball', NULL),
   ('Tanzen', NULL),
   ('Tischtennis', NULL);
+
+-- Kategorien (flache Tags) aus der alten Sage-Anwendung - nur die vom
+-- Nutzer tatsaechlich genannten Namen, keine weiteren erfunden. Kann ueber
+-- die Admin-Oberflaeche jederzeit um echte weitere Kategorien ergaenzt
+-- werden, sobald diese bekannt sind.
+INSERT IGNORE INTO ssv_member_management.categories (name) VALUES
+  ('Alte Herren'),
+  ('Ausgetretene Mitglieder'),
+  ('Badminton'),
+  ('Fahrradabteilung'),
+  ('Formationstanz'),
+  ('Frauenfitness'),
+  ('Fußball'),
+  ('Fußball Hobby'),
+  ('Fußballabteilung gesamt'),
+  ('Hobbytanz Erwachsene'),
+  ('Hobbytanz Kinder'),
+  ('Jungen');

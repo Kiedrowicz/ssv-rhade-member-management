@@ -169,6 +169,52 @@ Einspielen der Seed-Daten ist dadurch einmal ein doppeltes "Fußball"
 entstanden. Nach Möglichkeit Datenänderungen über die eigene API laufen
 lassen, nicht per direktem SQL.
 
+## Mitglieds-Detailseite (Sage-Übernahme)
+
+Die Detailseite (`app/index.html`, `#tabMemberDetail`) bildet bewusst
+**alle** aus der alten Sage-Anwendung bekannten Felder/Bereiche ab (Prinzip
+"lieber zu viel als zu wenig übernehmen für v1"), aber mit einer neuen
+Gliederung statt der alten Sage-Registerstruktur: fester Kopfbereich (Name,
+Mitgl.-Nr., Status, wichtigste Abteilung, Ort) mit Schnellaktionen, darunter
+5 Hauptreiter (Übersicht/Persönliche Daten/Mitgliedschaft & Verein/
+Beiträge & Zahlung/Weitere Daten).
+
+**Eine globale Bearbeiten/Speichern-Aktion statt pro Reiter:** Die Seite
+lädt einmal den kompletten Mitgliedsdatensatz (`currentMember`), "Bearbeiten"
+schaltet alle Scalar-Felder über alle Reiter hinweg gleichzeitig in den
+Edit-Modus, "Speichern" sendet **ein** erweitertes `POST member` mit allen
+Feldern. `buildFullMemberBody()` liest jedes Feld per `val(id, fallback)`
+aus dem DOM falls dort gerendert (Bearbeitungsmodus), sonst aus
+`currentMember` (Lesemodus/Schnellaktion) - das ist der Grund, warum auch
+Schnellaktionen wie "Austritt erfassen" oder "Deaktivieren" (die **nicht**
+den globalen Bearbeiten-Modus durchlaufen) trotzdem den vollständigen
+Datensatz mitschicken und keine Felder versehentlich leeren.
+
+**Listen-Unterentitäten bleiben sofort-persistent**, unabhängig vom
+globalen Lese-/Bearbeiten-Modus: Ämter, Erziehungsberechtigte, Beiträge,
+Kategorien, Ehrungen, Leistungen, Eigene Felder sowie das Mitgliedsbild
+werden über eigene Actions direkt gespeichert (Modal-Add, sofortiger
+Refetch) - exakt das schon vorher etablierte Muster.
+
+**Verlinkte Mitglieder** (Familie/Zahler/Betreuer) werden über ein
+generisches Such-Modal (`openMemberPickerModal()`, nutzt die bestehende
+`members`-Action mit `search`-Parameter) ausgewählt, nicht über ein
+`<select>` mit allen Mitgliedern - bei mehreren hundert Mitgliedern wäre das
+nicht mehr bedienbar. Anklicken eines verlinkten Mitglieds-Chips navigiert
+direkt zu dessen Detailseite (`openMemberForm(id)`).
+
+**Bewusst nur Platzhalter, kein Schema** für die Sage-Bereiche
+"Zusatzdaten", "Anwesenheit" und "Belegarchiv" - die genauen Feldnamen
+sind nur als Reiter-Existenz bekannt, nicht deren Inhalt. Erst nach
+Sichtung echter Sage-Screenshots werden hier echte Felder ergänzt, um
+nichts zu erfinden, das es in Sage vielleicht so gar nicht gibt.
+
+**Mitgliedsbild:** als `MEDIUMBLOB` in `member_photos` (eigene DB),
+serverseitig per `sharp` auf 500×500px komprimiert (`POST member-photo`)
+- kein eigenes Docker-Volume nötig, läuft im bestehenden nächtlichen
+Backup mit. Bei ~800 Mitgliedern und komprimierten Bildern (~30-80 KB)
+bleibt das im niedrigen zweistelligen MB-Bereich, für MariaDB unkritisch.
+
 ## Beitragsverwaltung — Scope der ersten Version
 
 `membership_fees` bildet Beitragsfälligkeiten und Zahlungsstatus ab, aber
