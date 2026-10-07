@@ -1,5 +1,10 @@
 # Projektregeln für Claude & Codex
 
+> **Produktspezifikation:** `../ssv-rhade-launchpad/docs/PRODUCT-SPEC.md` ist
+> die vollständige Produktbasis für die gesamte Vereinsplattform (alle vier
+> Repos, nicht nur Launchpad). Vor größeren Feature-Entscheidungen dort
+> nachlesen statt auf Zusammenfassungen/Gedächtnis zu vertrauen.
+
 ## Git-Workflow
 
 - Neue Features und Fixes werden auf **Feature- bzw. Fix-Branches** entwickelt: `feature/name` oder `fix/name`
