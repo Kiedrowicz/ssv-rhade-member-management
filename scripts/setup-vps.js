@@ -40,10 +40,15 @@ readFileSync(resolve(ROOT, '.env'), 'utf8').split('\n').forEach(line => {
 const HOST       = env['VPS_HOST'];
 const USER       = env['VPS_USER'] || 'root';
 const PASS       = env['VPS_PASSWORD'];
-const REMOTE_DIR = '/opt/ssv-member-management';
-const CADDY_DIR  = '/opt/ssv-caddy';
-const NETWORK    = 'ssv-shared';
-const DOMAIN     = 'members.ssv-rhade.de';
+// Defaults = heutige SSV-Rhade-Installation, pro Installation ueberschreibbar
+// (z.B. INSTANCE_REMOTE_DIR in .env) - ohne gesetzte Werte aendert sich an
+// der laufenden Installation nichts.
+const REMOTE_DIR = env['INSTANCE_REMOTE_DIR'] || '/opt/ssv-member-management';
+const CADDY_DIR  = env['INSTANCE_CADDY_DIR']  || '/opt/ssv-caddy';
+const NETWORK    = env['INSTANCE_NETWORK']    || 'ssv-shared';
+const DOMAIN     = env['INSTANCE_DOMAIN']     || 'members.ssv-rhade.de';
+const DB_HOST_CONTAINER = env['INSTANCE_DB_HOST_CONTAINER'] || 'ssv-travel-mariadb';
+const APP_CONTAINER_NAME = env['INSTANCE_CONTAINER_NAME'] || 'ssv-member-management';
 
 if (!HOST || !PASS) {
   console.error('VPS_HOST oder VPS_PASSWORD fehlt in .env (siehe .env.example - derselbe VPS wie travel-expenses)');
@@ -118,12 +123,12 @@ const PROD_COMPOSE = `services:
 
   dashboard:
     build: .
-    container_name: ssv-member-management
+    container_name: ${APP_CONTAINER_NAME}
     restart: unless-stopped
     expose:
       - "3000"
     environment:
-      DB_HOST: ssv-travel-mariadb
+      DB_HOST: ${DB_HOST_CONTAINER}
       DB_PORT: 3306
       DB_NAME: ssv_member_management
       DB_USER: ssv_members
@@ -210,7 +215,7 @@ for (const [local, remote] of files) {
 
 await uploadContent(sftp, PROD_COMPOSE,   `${REMOTE_DIR}/docker-compose.yml`);
 await uploadContent(sftp, buildProdEnv(), `${REMOTE_DIR}/.env`);
-await mergeCaddyBlock(sftp, `${CADDY_DIR}/Caddyfile`, DOMAIN, 'ssv-member-management');
+await mergeCaddyBlock(sftp, `${CADDY_DIR}/Caddyfile`, DOMAIN, APP_CONTAINER_NAME);
 
 await sftp.end();
 console.log('\n✓ Alle Dateien hochgeladen\n');
