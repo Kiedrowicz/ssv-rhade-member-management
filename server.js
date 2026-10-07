@@ -39,7 +39,7 @@ const pool = mysql.createPool({
   port:               parseInt(process.env.DB_PORT || '3306'),
   database:           process.env.DB_NAME     || 'ssv_member_management',
   user:               process.env.DB_USER     || 'ssv_members',
-  password:           process.env.DB_PASSWORD || 'change-me',
+  password:           process.env.DB_PASSWORD,
   waitForConnections: true,
   connectionLimit:    10,
   charset:            'utf8mb4',
@@ -996,7 +996,7 @@ async function runSchemaMigrations() {
     host:     process.env.DB_HOST     || '127.0.0.1',
     port:     parseInt(process.env.DB_PORT || '3306'),
     user:     process.env.DB_USER     || 'ssv_members',
-    password: process.env.DB_PASSWORD || 'change-me',
+    password: process.env.DB_PASSWORD,
     charset:  'utf8mb4',
     multipleStatements: true,
   });
