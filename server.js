@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { createSelfServiceRouter } from './self-service.js';
 
 // override: true, weil travel-expenses lokal dieselben Variablennamen
 // (DB_USER, DB_PASSWORD, ...) bereits als Shell-/System-Umgebungsvariablen
@@ -260,6 +261,10 @@ async function warnIfFootballDepartmentMissing() {
   }
 }
 
+// Selbstbedienung (Launchpad) + Einwilligungen - eigene, eng begrenzte
+// Actions VOR den Admin-Routern; unbekannte Actions laufen per next() weiter.
+app.use(createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, writeAudit }));
+
 // ── API-Router: GET (Lesevorgaenge) ─────────────────────────────────────
 
 app.get('/api', async (req, res) => {
@@ -267,6 +272,9 @@ app.get('/api', async (req, res) => {
   if (!PUBLIC_ACTIONS.has(action)) {
     req.user = authenticate(req);
     if (!req.user) return fail(res, 'Nicht angemeldet', 401);
+    // Tokens mit scope (z.B. Launchpad-Selbstbedienung) sind auf die Actions
+    // in self-service.js beschraenkt - nie Admin-Zugriff hier.
+    if (req.user.scope) return fail(res, 'Keine Berechtigung', 403);
   }
 
   try {
@@ -449,6 +457,9 @@ app.post('/api', async (req, res) => {
   if (!PUBLIC_ACTIONS.has(action)) {
     req.user = authenticate(req);
     if (!req.user) return fail(res, 'Nicht angemeldet', 401);
+    // Tokens mit scope (z.B. Launchpad-Selbstbedienung) sind auf die Actions
+    // in self-service.js beschraenkt - nie Admin-Zugriff hier.
+    if (req.user.scope) return fail(res, 'Keine Berechtigung', 403);
   }
 
   try {
