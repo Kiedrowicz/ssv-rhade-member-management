@@ -241,7 +241,9 @@ eigenständig weiter, das ist eine Vorgabe bis zum Launchpad-Rollout.
   - `self-update-bank`: IBAN mit Prüfziffer-Check, nur mit bestätigtem SEPA-Mandatstext.
   - `self-consent`: Einwilligungen. Widerruf immer möglich, online erteilen nur ab 18.
   - `self-terminate` / `self-terminate-withdraw`: setzt bzw. löscht `left_at`. Den Termin und die
-    Rücknahmefrist berechnet das Launchpad.
+    Rücknahmefrist berechnet das Launchpad. Optional `source` (`ONLINE`, `MAIL` = per Mail und
+    Bestätigungslink, `MAIL_PDF` = per Mail mit PDF) und `requestedOn` (Eingangstag, maßgeblich
+    für die Frist). Zurücknehmen lassen sich nur Kündigungen mit einer dieser Quellen.
 - **Verwaltung (normaler Token):** `member-consents` (Stand und Historie) und `member-consent`
   (Erfassung vom Papierantrag, inkl. Unterschrift der Eltern bei Minderjährigen).
 - **Daten:**

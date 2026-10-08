@@ -76,6 +76,9 @@ async function loadConsents(pool, playerId) {
   });
 }
 
+// Eingangswege einer Kuendigung, die das Launchpad abwickelt
+const TERMINATION_SOURCES = { ONLINE: 'online', MAIL: 'per E-Mail, per Link bestätigt', MAIL_PDF: 'per E-Mail mit PDF' };
+
 export function createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, writeAudit }) {
   const router = express.Router();
 
@@ -225,25 +228,30 @@ export function createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, w
       const playerId = Number(user.playerId);
       const leftAt = String(req.body.leftAt ?? '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(leftAt)) return fail(res, 'Ungültiges Austrittsdatum');
+      // Eingangsweg und -tag legt das Launchpad fest (Kuendigung im Launchpad,
+      // per Mail mit PDF oder per Mail mit Bestaetigungslink); massgeblich
+      // fuer die Frist ist der Eingang, nicht die Bestaetigung.
+      const source = Object.hasOwn(TERMINATION_SOURCES, req.body.source) ? req.body.source : 'ONLINE';
+      const requestedOn = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body.requestedOn ?? '')) ? req.body.requestedOn : null;
       const [[m]] = await pool.query('SELECT status, left_at FROM memberships WHERE player_id = ?', [playerId]);
       if (!m) return fail(res, 'Keine Mitgliedschaft gefunden', 404);
       if (m.status !== 'ACTIVE') return fail(res, 'Die Mitgliedschaft ist nicht aktiv');
       if (m.left_at) return fail(res, 'Für diese Mitgliedschaft ist bereits ein Austritt eingetragen', 409);
       await pool.query(
-        `UPDATE memberships SET left_at = ?, exit_reason = 'Kündigung (online)', termination_requested_at = NOW(),
-           termination_source = 'ONLINE' WHERE player_id = ?`,
-        [leftAt, playerId]
+        `UPDATE memberships SET left_at = ?, exit_reason = ?, termination_requested_at = COALESCE(?, NOW()),
+           termination_source = ? WHERE player_id = ?`,
+        [leftAt, `Kündigung (${TERMINATION_SOURCES[source]})`, requestedOn, source, playerId]
       );
-      await writeAudit({ userAccountId: null, tableName: 'memberships', recordId: playerId, fieldName: 'left_at (Kündigung online)', oldValue: null, newValue: leftAt });
+      await writeAudit({ userAccountId: null, tableName: 'memberships', recordId: playerId, fieldName: `left_at (Kündigung ${TERMINATION_SOURCES[source]})`, oldValue: null, newValue: leftAt });
       return res.json({ ok: true, leftAt });
     },
 
-    // Ruecknahme einer ONLINE eingereichten Kuendigung (Frist prueft das Launchpad)
+    // Ruecknahme einer ueber das Launchpad abgewickelten Kuendigung (Frist prueft das Launchpad)
     'POST self-terminate-withdraw': async (req, res) => {
       const user = selfAuth(req, res); if (!user) return;
       const playerId = Number(user.playerId);
       const [[m]] = await pool.query('SELECT left_at, termination_source FROM memberships WHERE player_id = ?', [playerId]);
-      if (!m?.left_at || m.termination_source !== 'ONLINE') return fail(res, 'Keine online eingereichte Kündigung vorhanden', 409);
+      if (!m?.left_at || !Object.hasOwn(TERMINATION_SOURCES, m.termination_source ?? '')) return fail(res, 'Keine über das Launchpad abgewickelte Kündigung vorhanden', 409);
       await pool.query(
         `UPDATE memberships SET left_at = NULL, exit_reason = NULL, termination_requested_at = NULL, termination_source = NULL
          WHERE player_id = ?`,
