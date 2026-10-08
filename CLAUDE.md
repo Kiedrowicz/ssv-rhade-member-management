@@ -225,3 +225,29 @@ bleibt das im niedrigen zweistelligen MB-Bereich, für MariaDB unkritisch.
 `membership_fees` bildet Beitragsfälligkeiten und Zahlungsstatus ab, aber
 **ohne** automatisierten Mahnwesen-Mailversand oder PDF-Export — das ist
 bewusst zurückgestellt. Status wird manuell im Admin-Dashboard gepflegt.
+
+## Selbstbedienung für das Launchpad (seit 2026-10-08)
+
+`self-service.js` ergänzt die API **rein additiv**. Die Admin-Oberfläche dieser App läuft unverändert
+eigenständig weiter, das ist eine Vorgabe bis zum Launchpad-Rollout.
+
+- **Token-Scope:** Das Launchpad ruft serverseitig mit einem kurzlebigen Token
+  `{ scope: 'self', playerId, launchpadAccountId }` auf. Solche Tokens dürfen nur die `self-*`-Actions
+  nutzen. Die Admin-Handler in `server.js` lehnen jeden Token mit `scope` ab (403). Neue Admin-Actions
+  brauchen dafür nichts weiter, die Prüfung sitzt direkt nach `authenticate()`.
+- **Actions:**
+  - `self-profile`: eigene Daten, IBAN nur maskiert.
+  - `self-update-contact`: Adresse, E-Mail, Telefon.
+  - `self-update-bank`: IBAN mit Prüfziffer-Check, nur mit bestätigtem SEPA-Mandatstext.
+  - `self-consent`: Einwilligungen. Widerruf immer möglich, online erteilen nur ab 18.
+  - `self-terminate` / `self-terminate-withdraw`: setzt bzw. löscht `left_at`. Den Termin und die
+    Rücknahmefrist berechnet das Launchpad.
+- **Verwaltung (normaler Token):** `member-consents` (Stand und Historie) und `member-consent`
+  (Erfassung vom Papierantrag, inkl. Unterschrift der Eltern bei Minderjährigen).
+- **Daten:**
+  - `member_consents` (je Änderung eine Zeile, gültig ist die jüngste)
+  - `memberships.termination_requested_at` / `termination_source`
+  - `member_payment_details.mandate_confirmed_online_at`
+- **Audit:** Jede Selbst-Änderung landet feldweise in `audit_log` mit `user_account_id = NULL` und dem
+  Zusatz „(Selbstbedienung)“. Wer gehandelt hat (Account bzw. Elternteil), protokolliert das
+  Launchpad in seinem zentralen Audit.

@@ -385,3 +385,43 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.audit_log (
     FOREIGN KEY (user_account_id) REFERENCES ssv_member_management.user_accounts(id)
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Selbstbedienung (Launchpad) und Einwilligungen (2026-10-08) ──────────
+-- Rein additiv, die Admin-Oberflaeche dieser App funktioniert unveraendert.
+-- Siehe self-service.js und CLAUDE.md, Abschnitt "Selbstbedienung".
+
+-- Online-Kuendigung: wann/wie eingereicht (left_at = Austrittstermin)
+ALTER TABLE ssv_member_management.memberships
+  ADD COLUMN IF NOT EXISTS termination_requested_at DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS termination_source VARCHAR(20) DEFAULT NULL;
+
+-- Zeitpunkt, zu dem das Mitglied bei einer neuen IBAN den SEPA-Mandatstext
+-- online bestaetigt hat (Mandatsreferenz bleibt Sache der Verwaltung)
+ALTER TABLE ssv_member_management.member_payment_details
+  ADD COLUMN IF NOT EXISTS mandate_confirmed_online_at DATETIME DEFAULT NULL;
+
+-- Einwilligungen aus dem Aufnahmeantrag (freiwillig, jederzeit widerrufbar):
+--   CONTACT_SHARING = Kontaktdaten an Verband/andere Mitglieder
+--   MEDIA           = Fotos/Videos veroeffentlichen
+-- Jede Aenderung ist eine neue Zeile (Historie), gueltig ist die juengste.
+-- guardian_consent = bei Minderjaehrigen haben die gesetzlichen Vertreter
+-- mit unterschrieben (Papier, erfasst durch die Verwaltung).
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_consents (
+  id                              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  player_id                       INT UNSIGNED NOT NULL,
+  consent_type                    ENUM('CONTACT_SHARING','MEDIA') NOT NULL,
+  granted                         TINYINT(1) NOT NULL,
+  guardian_consent                TINYINT(1) NOT NULL DEFAULT 0,
+  source                          ENUM('PAPER','ONLINE','ADMIN') NOT NULL,
+  note                            VARCHAR(500) DEFAULT NULL,
+  recorded_by_user_account_id     INT UNSIGNED DEFAULT NULL,
+  recorded_by_launchpad_account_id INT UNSIGNED DEFAULT NULL,
+  created_at                      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_consents_player_type (player_id, consent_type),
+  CONSTRAINT fk_consents_player
+    FOREIGN KEY (player_id) REFERENCES ssv_shared_members.players(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_consents_user
+    FOREIGN KEY (recorded_by_user_account_id) REFERENCES ssv_member_management.user_accounts(id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
