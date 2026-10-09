@@ -238,7 +238,8 @@ eigenständig weiter, das ist eine Vorgabe bis zum Launchpad-Rollout.
 - **Actions:**
   - `self-profile`: eigene Daten, IBAN nur maskiert.
   - `self-update-contact`: Adresse, E-Mail, Telefon.
-  - `self-update-bank`: IBAN mit Prüfziffer-Check, nur mit bestätigtem SEPA-Mandatstext.
+  - `self-update-bank`: IBAN mit Prüfziffer-Check, nur mit bestätigtem SEPA-Mandatstext. Im `audit_log` steht
+    die IBAN nur maskiert (`DE89 **** **** 3000`), nie im Klartext.
   - `self-consent`: Einwilligungen. Widerruf immer möglich, online erteilen nur ab 18.
   - `self-terminate` / `self-terminate-withdraw`: setzt bzw. löscht `left_at`. Den Termin und die
     Rücknahmefrist berechnet das Launchpad. Optional `source` (`ONLINE`, `MAIL` = per Mail und

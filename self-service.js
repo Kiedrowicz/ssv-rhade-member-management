@@ -197,7 +197,12 @@ export function createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, w
            mandate_confirmed_online_at = NOW()`,
         [playerId, iban, bic, accountHolder]
       );
-      await auditChanges('member_payment_details', playerId, before, { iban, bic, account_holder: accountHolder }, ['iban', 'bic', 'account_holder']);
+      // IBAN nie im Klartext ins Protokoll (Datenminimierung, Entscheidung
+      // 2026-10-10): Aenderung am echten Wert erkennen, aber maskiert speichern
+      if ((before?.iban ?? '') !== iban) {
+        await writeAudit({ userAccountId: null, tableName: 'member_payment_details', recordId: playerId, fieldName: 'iban (Selbstbedienung)', oldValue: maskIban(before?.iban), newValue: maskIban(iban) });
+      }
+      await auditChanges('member_payment_details', playerId, before, { bic, account_holder: accountHolder }, ['bic', 'account_holder']);
       return res.json({ ok: true, ibanMasked: maskIban(iban), previousIbanMasked: maskIban(before?.iban) });
     },
 
