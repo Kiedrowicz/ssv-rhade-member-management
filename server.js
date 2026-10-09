@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import { createSelfServiceRouter } from './self-service.js';
+import { createRetentionRouter } from './retention.js';
 
 // override: true, weil travel-expenses lokal dieselben Variablennamen
 // (DB_USER, DB_PASSWORD, ...) bereits als Shell-/System-Umgebungsvariablen
@@ -264,6 +265,7 @@ async function warnIfFootballDepartmentMissing() {
 // Selbstbedienung (Launchpad) + Einwilligungen - eigene, eng begrenzte
 // Actions VOR den Admin-Routern; unbekannte Actions laufen per next() weiter.
 app.use(createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, writeAudit }));
+app.use(createRetentionRouter({ pool, SHARED_DB, authenticate, fail, writeAudit }));
 
 // ── API-Router: GET (Lesevorgaenge) ─────────────────────────────────────
 
@@ -578,6 +580,13 @@ app.post('/api', async (req, res) => {
            familyHeadPlayerId || null, payerPlayerId || null, supervisorPlayerId || null,
            exitReason || null, syncOutlook ? 1 : 0, doNotDun ? 1 : 0]
         );
+        // Wiedereintritt (Austritt entfernt): Spuren der Aufbewahrung zuruecksetzen,
+        // sonst schliesst z.B. die Fahrtkosten-Abrechnung die Person weiter aus
+        // (players.active_until, gesetzt von retention.js member-mark-left)
+        if (!leftAt) {
+          await pool.query(`UPDATE ${SHARED_DB}.players SET active_until = NULL WHERE id = ? AND active_until IS NOT NULL`, [resolvedPlayerId]);
+          await pool.query('UPDATE memberships SET teams_removed_at = NULL WHERE player_id = ? AND teams_removed_at IS NOT NULL', [resolvedPlayerId]);
+        }
 
         if (existingMembership && existingMembership.status !== (status || 'ACTIVE')) {
           await writeAudit({

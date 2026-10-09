@@ -253,3 +253,15 @@ eigenständig weiter, das ist eine Vorgabe bis zum Launchpad-Rollout.
 - **Audit:** Jede Selbst-Änderung landet feldweise in `audit_log` mit `user_account_id = NULL` und dem
   Zusatz „(Selbstbedienung)“. Wer gehandelt hat (Account bzw. Elternteil), protokolliert das
   Launchpad in seinem zentralen Audit.
+
+## Aufbewahrung nach dem Austritt (seit 2026-10-09)
+
+`retention.js` stellt Verwaltungs-Actions für das Launchpad bereit (normaler Admin-Token, kein `scope`):
+- `retention-candidates`: alle mit erreichtem `left_at`, mit aktuellen Teams und `teams_removed_at`.
+- `member-mark-left`: setzt `players.active_until = left_at`. Die Fahrtkosten-Abrechnung erzeugt danach keine neuen Monate.
+- `member-remove-teams`: verschiebt `player_teams` und das alte `players.team_id` nach `member_team_history`
+  (mit Teamname und Austrittsdatum, fürs Vereinsarchiv) und setzt `status = TERMINATED`.
+- `member-team-history`: liest die Historie.
+
+Wird beim Speichern eines Mitglieds der Austritt entfernt (Wiedereintritt), werden `active_until` und
+`teams_removed_at` zurückgesetzt. Gelöscht wird hier nichts. Hintergrund: `ssv-rhade/docs/aufbewahrung-vorschlag.md`.
