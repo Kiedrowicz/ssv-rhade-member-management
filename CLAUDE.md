@@ -266,3 +266,9 @@ eigenständig weiter, das ist eine Vorgabe bis zum Launchpad-Rollout.
 
 Wird beim Speichern eines Mitglieds der Austritt entfernt (Wiedereintritt), werden `active_until` und
 `teams_removed_at` zurückgesetzt. Gelöscht wird hier nichts. Hintergrund: `ssv-rhade/docs/aufbewahrung-vorschlag.md`.
+- `member-archive` (Stufe 2, seit 2026-10-10): prüft die Frist (`archiveYears`, bis Jahresende) und kopiert
+  Name nach `member_archive`, Ehrungen (Titel und Datum, **ohne Notiz**) nach `member_archive_honors` und
+  noch vorhandene Teams nach `member_team_history`. Danach löscht es das eigene `audit_log` zur Person und
+  die Zeile in `players`. Der FK-Cascade entfernt dann alle abhängigen Daten in allen Modulen.
+  `reapply: true` ist nur für schon archivierte Personen erlaubt (nach einer Backup-Wiederherstellung).
+  `member-archive-list` liefert das Vereinsarchiv. Aufgerufen wird nur vom Launchpad.
