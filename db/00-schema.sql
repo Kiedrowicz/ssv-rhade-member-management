@@ -453,3 +453,22 @@ UPDATE ssv_member_management.audit_log
        new_value = IF(new_value IS NULL OR new_value LIKE '%*%', new_value,
                       CONCAT(LEFT(new_value, 4), ' **** **** ', RIGHT(new_value, 4)))
  WHERE table_name = 'member_payment_details' AND field_name LIKE 'iban%';
+
+-- Vereinsarchiv (Stufe 2 der Aufbewahrung, retention.js member-archive):
+-- nach Ablauf der Frist bleiben NUR Name, Teams (member_team_history) und
+-- Ehrungen. person_ref = fruehere players.id (die Person selbst ist geloescht,
+-- daher bewusst kein FK); verbindet Archiv, Team-Historie und Ehrungen.
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_archive (
+  person_ref  INT UNSIGNED PRIMARY KEY,
+  first_name  VARCHAR(100) NOT NULL,
+  last_name   VARCHAR(100) NOT NULL,
+  archived_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_archive_honors (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  person_ref  INT UNSIGNED NOT NULL,
+  title       VARCHAR(255) NOT NULL,
+  honor_date  DATE DEFAULT NULL,
+  INDEX idx_archive_honors_person (person_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -119,6 +119,89 @@ export function createRetentionRouter({ pool, SHARED_DB, authenticate, fail, wri
       return res.json({ ok: true, teams: teams.map(t => ({ id: t.team_id, name: t.name })) });
     },
 
+    // Stufe 2: Archivieren (Entscheidung 2026-10-10: pauschal archiveYears
+    // nach dem Austritt, gerechnet bis Jahresende). Ins Vereinsarchiv kommen
+    // NUR Vorname, Nachname, Teams (member_team_history) und Ehrungen (Titel
+    // + Datum, ohne Notiz). Danach wird die Person in players geloescht - per
+    // FK ON DELETE CASCADE verschwinden alle abhaengigen Daten in allen
+    // Modulen. Vorher muss das Launchpad die Daten ohne FK entfernt haben.
+    'POST member-archive': async (req, res) => {
+      const user = adminAuth(req, res); if (!user) return;
+      const playerId = Number(req.body.playerId);
+      const years = Number(req.body.archiveYears);
+      // reapply: nach einer Backup-Wiederherstellung erneut loeschen - nur
+      // erlaubt, wenn die Person nachweislich schon archiviert wurde
+      const reapply = req.body.reapply === true;
+      if (!playerId || (!reapply && (!Number.isInteger(years) || years < 1))) return fail(res, 'playerId und archiveYears erforderlich');
+      const [[m]] = await pool.query(
+        `SELECT m.left_at, YEAR(m.left_at) + ? < YEAR(CURDATE()) AS due, p.first_name, p.last_name
+         FROM ${SHARED_DB}.players p LEFT JOIN memberships m ON m.player_id = p.id WHERE p.id = ?`,
+        [years || 0, playerId]
+      );
+      if (!m) return res.json({ ok: true, archived: { honors: 0, teams: 0 }, alreadyGone: true });
+      if (reapply) {
+        const [[known]] = await pool.query('SELECT 1 AS ok FROM member_archive WHERE person_ref = ?', [playerId]);
+        if (!known) return fail(res, 'Wiederholung nur für bereits archivierte Personen', 409);
+      } else {
+        if (!m.left_at) return fail(res, 'Die Person ist nicht ausgetreten', 409);
+        if (!m.due) return fail(res, 'Die Aufbewahrungsfrist ist noch nicht abgelaufen', 409);
+      }
+      const conn = await pool.getConnection();
+      let honors, teams;
+      try {
+        await conn.beginTransaction();
+        // Teams, die Stufe 1 noch nicht verschoben hat, ebenfalls ins Archiv
+        // (bei der Wiederholung stehen sie dort schon)
+        teams = await currentTeams(conn, playerId);
+        if (teams.length && !reapply) {
+          await conn.query(
+            `INSERT INTO member_team_history (player_id, team_id, team_name, joined_at, left_at)
+             VALUES ${teams.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+            teams.flatMap(t => [playerId, t.team_id, t.name, t.joined_at, m.left_at])
+          );
+        }
+        // IGNORE: nach einer Backup-Wiederherstellung kann der Archiveintrag
+        // schon existieren - dann Ehrungen nicht doppelt uebernehmen
+        const [ins] = await conn.query(
+          'INSERT IGNORE INTO member_archive (person_ref, first_name, last_name) VALUES (?, ?, ?)',
+          [playerId, m.first_name, m.last_name]
+        );
+        [honors] = await conn.query('SELECT title, honor_date FROM member_honors WHERE player_id = ?', [playerId]);
+        if (honors.length && ins.affectedRows) {
+          await conn.query(
+            `INSERT INTO member_archive_honors (person_ref, title, honor_date) VALUES ${honors.map(() => '(?, ?, ?)').join(', ')}`,
+            honors.flatMap(h => [playerId, h.title, h.honor_date])
+          );
+        }
+        // Eigenes Aenderungsprotokoll zur Person (enthaelt alte Werte)
+        await conn.query(
+          `DELETE FROM audit_log WHERE (record_id = ? AND table_name IN ('players','memberships','member_payment_details','member_consents','player_teams'))
+             OR (table_name = 'membership_fees' AND record_id IN (SELECT id FROM membership_fees WHERE player_id = ?))`,
+          [playerId, playerId]
+        );
+        await conn.query(`DELETE FROM ${SHARED_DB}.players WHERE id = ?`, [playerId]);
+        await conn.commit();
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
+      }
+      return res.json({ ok: true, archived: { honors: honors.length, teams: teams.length } });
+    },
+
+    // Vereinsarchiv (nur fuer die Verwaltung)
+    'GET member-archive-list': async (req, res) => {
+      if (!adminAuth(req, res)) return;
+      const [rows] = await pool.query(
+        `SELECT a.person_ref, a.first_name, a.last_name, a.archived_at,
+                (SELECT GROUP_CONCAT(DISTINCT h.team_name ORDER BY h.team_name SEPARATOR ', ') FROM member_team_history h WHERE h.player_id = a.person_ref) AS teams,
+                (SELECT GROUP_CONCAT(CONCAT(x.title, IFNULL(CONCAT(' (', YEAR(x.honor_date), ')'), '')) SEPARATOR ', ') FROM member_archive_honors x WHERE x.person_ref = a.person_ref) AS honors
+         FROM member_archive a ORDER BY a.last_name, a.first_name`
+      );
+      return res.json(rows.map(r => ({ ref: r.person_ref, firstName: r.first_name, lastName: r.last_name, archivedAt: r.archived_at, teams: r.teams, honors: r.honors })));
+    },
+
     // Team-Historie einer Person (Archiv)
     'GET member-team-history': async (req, res) => {
       if (!adminAuth(req, res)) return;
