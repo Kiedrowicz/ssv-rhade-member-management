@@ -443,3 +443,13 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.member_team_history (
 
 ALTER TABLE ssv_member_management.memberships
   ADD COLUMN IF NOT EXISTS teams_removed_at DATETIME DEFAULT NULL;
+
+-- Datenminimierung (Entscheidung 2026-10-10): IBANs aus der Selbstbedienung
+-- wurden bis dahin im Klartext protokolliert - nachtraeglich maskieren
+-- (idempotent: bereits maskierte Werte enthalten '*').
+UPDATE ssv_member_management.audit_log
+   SET old_value = IF(old_value IS NULL OR old_value LIKE '%*%', old_value,
+                      CONCAT(LEFT(old_value, 4), ' **** **** ', RIGHT(old_value, 4))),
+       new_value = IF(new_value IS NULL OR new_value LIKE '%*%', new_value,
+                      CONCAT(LEFT(new_value, 4), ' **** **** ', RIGHT(new_value, 4)))
+ WHERE table_name = 'member_payment_details' AND field_name LIKE 'iban%';
