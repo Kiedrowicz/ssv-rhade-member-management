@@ -425,3 +425,21 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.member_consents (
     FOREIGN KEY (recorded_by_user_account_id) REFERENCES ssv_member_management.user_accounts(id)
     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Aufbewahrung nach dem Austritt, Stufe 1 (retention.js): Teamzugehoerigkeit
+-- Ausgetretener wandert aus player_teams/players.team_id hierher (Vereinsarchiv:
+-- Name + Mannschaft bleiben erhalten). team_name als Kopie, falls das Team
+-- spaeter umbenannt oder geloescht wird.
+CREATE TABLE IF NOT EXISTS ssv_member_management.member_team_history (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  player_id  INT UNSIGNED NOT NULL,
+  team_id    INT UNSIGNED DEFAULT NULL,
+  team_name  VARCHAR(255) NOT NULL,
+  joined_at  DATE DEFAULT NULL,
+  left_at    DATE NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_team_history_player (player_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE ssv_member_management.memberships
+  ADD COLUMN IF NOT EXISTS teams_removed_at DATETIME DEFAULT NULL;
