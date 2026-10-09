@@ -272,3 +272,5 @@ Wird beim Speichern eines Mitglieds der Austritt entfernt (Wiedereintritt), werd
   die Zeile in `players`. Der FK-Cascade entfernt dann alle abhängigen Daten in allen Modulen.
   `reapply: true` ist nur für schon archivierte Personen erlaubt (nach einer Backup-Wiederherstellung).
   `member-archive-list` liefert das Vereinsarchiv. Aufgerufen wird nur vom Launchpad.
+- `member-audit` (Verwaltungs-Token, seit 2026-10-10): eigenes `audit_log` zu einer Person, für den Historie-Tab
+  im Launchpad. Gleiche Tabellenauswahl wie beim Löschen in `retention.js`.

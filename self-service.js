@@ -267,6 +267,27 @@ export function createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, w
     },
 
     // ── Verwaltung (normaler Admin-Token, kein scope) ───────────────────
+    // Aenderungsprotokoll dieser App zu einer Person (fuer die Historie im
+    // Launchpad, dort nur mit audit.read). Gleiche Tabellenauswahl wie beim
+    // Loeschen in retention.js member-archive.
+    'GET member-audit': async (req, res) => {
+      if (!adminAuth(req, res)) return;
+      const playerId = Number(req.query.playerId);
+      if (!playerId) return fail(res, 'playerId erforderlich');
+      const [rows] = await pool.query(
+        `SELECT a.id, a.table_name, a.record_id, a.field_name, a.old_value, a.new_value, a.changed_at, u.username
+         FROM audit_log a LEFT JOIN user_accounts u ON u.id = a.user_account_id
+         WHERE (a.record_id = ? AND a.table_name IN ('players','memberships','member_payment_details','member_consents','player_teams'))
+            OR (a.table_name = 'membership_fees' AND a.record_id IN (SELECT id FROM membership_fees WHERE player_id = ?))
+         ORDER BY a.changed_at DESC, a.id DESC LIMIT 500`,
+        [playerId, playerId]
+      );
+      return res.json(rows.map(r => ({
+        id: r.id, table: r.table_name, recordId: r.record_id, field: r.field_name,
+        oldValue: r.old_value, newValue: r.new_value, at: r.changed_at, user: r.username,
+      })));
+    },
+
     'GET member-consents': async (req, res) => {
       if (!adminAuth(req, res)) return;
       const playerId = Number(req.query.playerId);
