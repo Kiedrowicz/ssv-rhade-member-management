@@ -171,10 +171,30 @@ const files = [
   ['Dockerfile',             `${REMOTE_DIR}/Dockerfile`],
   ['package.json',           `${REMOTE_DIR}/package.json`],
   ['server.js',              `${REMOTE_DIR}/server.js`],
+  ['self-service.js',        `${REMOTE_DIR}/self-service.js`],
+  ['retention.js',           `${REMOTE_DIR}/retention.js`],
   ['app/index.html',         `${REMOTE_DIR}/app/index.html`],
   ['app/assets/ssv-rhade-logo.png', `${REMOTE_DIR}/app/assets/ssv-rhade-logo.png`],
   ['db/00-schema.sql',       `${REMOTE_DIR}/db/00-schema.sql`],
 ];
+// Sicherung: jede lokale Datei, die server.js importiert, muss mit hoch -
+// sonst startet der Container auf dem VPS nicht (so fast passiert mit
+// self-service.js/retention.js beim ersten Launchpad-Deployment 2026-10-10).
+{
+  const imported = [...readFileSync(resolve(ROOT, 'server.js'), 'utf8').matchAll(/from '\.\/([^']+)'/g)].map(m => m[1]);
+  const missing = imported.filter(f => !files.some(([local]) => local === f));
+  if (missing.length) {
+    console.error(`setup-vps.js: server.js importiert ${missing.join(', ')}, die nicht in der Upload-Liste stehen.`);
+    process.exit(1);
+  }
+  // .dockerignore schliesst *.js aus und laesst nur einzeln freigegebene durch
+  const dockerignore = readFileSync(resolve(ROOT, '.dockerignore'), 'utf8').split(/\r?\n/).map(l => l.trim());
+  const ignored = imported.filter(f => !dockerignore.includes(`!${f}`));
+  if (ignored.length) {
+    console.error(`setup-vps.js: ${ignored.join(', ')} fehlt als Freigabe ("!datei") in .dockerignore - der Container würde nicht starten.`);
+    process.exit(1);
+  }
+}
 if (existsSync(resolve(ROOT, 'package-lock.json'))) {
   files.push(['package-lock.json', `${REMOTE_DIR}/package-lock.json`]);
 }

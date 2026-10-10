@@ -7,6 +7,8 @@ db
 *.json
 !app/
 !server.js
+!self-service.js
+!retention.js
 !package.json
 !package-lock.json
 !db/00-schema.sql
