@@ -45,14 +45,15 @@
     color: #fff;
     padding: 12px 20px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 10px 12px;
     box-shadow: 0 2px 12px rgba(125,26,26,.4);
   }
-  .hd-logo { width: 38px; height: 38px; border-radius: 10px; background: #fff; padding: 4px; object-fit: contain; }
+  .hd-logo { width: 38px; height: 38px; border-radius: 10px; background: #fff; padding: 4px; object-fit: contain; flex-shrink: 0; }
   .hd-title { font-size: 1.05rem; font-weight: 700; }
-  .hd-user { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; opacity: .9; }
-  .hd-user button { background: rgba(255,255,255,.15); color: #fff; }
+  .hd-user { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.8rem; opacity: .9; }
+  .hd-user button { background: rgba(255,255,255,.15); color: #fff; white-space: nowrap; }
 
   nav.tabs { display: flex; gap: 4px; padding: 10px 20px 0; background: #fff; border-bottom: 1px solid #e2e2e6; }
   nav.tabs button { background: none; border-radius: 8px 8px 0 0; padding: 10px 16px; color: #666; }
@@ -64,8 +65,8 @@
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .row .field { flex: 1; min-width: 140px; }
 
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eee; font-size: 0.85rem; }
+  table { width: 100%; min-width: 560px; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eee; font-size: 0.85rem; white-space: nowrap; }
   th { color: #888; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .03em; }
   tr.clickable { cursor: pointer; }
   tr.clickable:hover { background: #faf5f5; }
@@ -75,6 +76,7 @@
   .badge.ACTIVE { background: #e3f3e6; color: #237a3a; }
   .badge.PAUSED { background: #fdf1d8; color: #9a6a10; }
   .badge.TERMINATED { background: #f2e2e2; color: #883535; }
+  .badge.PENDING { background: #fdf1d8; color: #9a6a10; }
   .badge.OPEN { background: #fdf1d8; color: #9a6a10; }
   .badge.PAID { background: #e3f3e6; color: #237a3a; }
   .badge.OVERDUE { background: #f2e2e2; color: #883535; }
@@ -82,6 +84,29 @@
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
 
+  .more-filters { margin: 4px 0 14px; }
+  .more-filters summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: #7D1A1A; padding: 4px 0; list-style: revert; }
+  .filter-badge { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7D1A1A; margin-left: 4px; }
+
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: #7D1A1A; }
+  .sort-arrow { margin-left: 4px; font-size: 0.7em; }
+  .sort-arrow.asc::after { content: '▲'; }
+  .sort-arrow.desc::after { content: '▼'; }
+
+  .team-tag { display: inline-block; background: #f0e6e6; color: #7D1A1A; border-radius: 6px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; margin: 1px 3px 1px 0; white-space: nowrap; }
+  .status-note { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+  .status-note.PENDING { background: #fdf1d8; color: #9a6a10; }
+  .status-note.TERMINATED { background: #f2e2e2; color: #883535; }
+
+  .team-picker { border: 1px solid #d7d7dc; border-radius: 8px; padding: 8px 10px; max-height: 260px; overflow-y: auto; background: #fff; }
+  .team-picker label { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 0.85rem; color: #1a1a1a; padding: 6px 0; margin: 0; }
+  .team-picker input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+  .team-node { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f2; }
+  .team-node:last-child { border-bottom: none; }
+  .team-node .name { font-weight: 600; }
+  .team-node.depth-0 .name { font-weight: 700; color: #7D1A1A; }
+  .team-node-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .subsection { border-top: 1px solid #eee; margin-top: 16px; padding-top: 16px; }
   .subsection h3 { font-size: 0.85rem; margin-bottom: 10px; }
   .list-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f2f2f2; }
@@ -92,6 +117,48 @@
 
   #loginScreen { max-width: 340px; margin: 12vh auto; }
   [hidden] { display: none !important; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(20,10,10,.5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 100;
+  }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 20px;
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.3);
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .modal .field label[data-checkbox] { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+  .modal .field input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+
+  /* ── Mitglieds-Detailseite ─────────────────────────────────────────── */
+  .detail-header { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .detail-header .name { font-size: 1.3rem; font-weight: 700; }
+  .detail-header .meta { font-size: 0.85rem; color: #555; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .detail-header .meta .sep { color: #ccc; }
+  .detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+  .ro-value { padding: 9px 0; min-height: 1.4em; color: #1a1a1a; }
+  .ro-value.empty { color: #aaa; }
+
+  .detail-tabs { display: flex; flex-wrap: wrap; gap: 4px; background: #fff; border-radius: 12px 12px 0 0; padding: 6px 6px 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .detail-tabs button { background: none; color: #666; border-radius: 8px 8px 0 0; padding: 10px 14px; font-size: 0.85rem; }
+  .detail-tabs button.active { background: #F0F2F5; color: #7D1A1A; font-weight: 700; }
+  .detail-tab-content { background: #fff; border-radius: 0 0 12px 12px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); max-height: 70vh; overflow-y: auto; }
+  .detail-section { border-top: 1px solid #eee; padding-top: 14px; margin-top: 14px; }
+  .detail-section:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  .detail-section > summary, .detail-section > h3 { font-size: 0.9rem; font-weight: 700; color: #333; margin-bottom: 10px; cursor: pointer; }
+  .detail-section > h3 { cursor: default; }
+
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: #f0e6e6; color: #7D1A1A; border-radius: 20px; padding: 4px 6px 4px 12px; font-size: 0.78rem; font-weight: 600; margin: 2px 4px 2px 0; }
+  .chip button { background: none; padding: 2px 6px; color: #7D1A1A; font-weight: 700; border-radius: 50%; }
+  .chip button:hover { background: rgba(125,26,26,.15); box-shadow: none; }
+  .chip.linkable { cursor: pointer; }
+  .chip.linkable:hover { background: #e6d5d5; }
+
+  .photo-preview { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; background: #eee; display: block; }
+  .placeholder-note { color: #888; font-size: 0.85rem; background: #f7f7f9; border-radius: 8px; padding: 12px; }
 </style>
 </head>
 <body>
@@ -117,6 +184,7 @@
 
   <nav class="tabs">
     <button id="tabBtnMembers" class="active" onclick="showTab('members')">Mitglieder</button>
+    <button id="tabBtnDepartments" onclick="showTab('departments')">Abteilungen</button>
     <button id="tabBtnTypes" onclick="showTab('types')">Beitragsklassen</button>
   </nav>
 
@@ -126,77 +194,109 @@
       <div class="card">
         <div class="toolbar">
           <div class="row" style="flex:1">
-            <div class="field"><input id="filterSearch" placeholder="Suche: Name oder Mitgliedsnummer" oninput="debouncedLoadMembers()"></div>
-            <div class="field" style="max-width:160px">
+            <div class="field"><input id="filterSearch" placeholder="Mitglied suchen..." oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:170px">
               <select id="filterStatus" onchange="loadMembers()">
-                <option value="">Alle Status</option>
-                <option value="ACTIVE">Aktiv</option>
+                <option value="ACTIVE" selected>Aktiv</option>
                 <option value="PAUSED">Ruhend</option>
-                <option value="TERMINATED">Gekündigt</option>
+                <option value="PENDING">Austritt vorgemerkt</option>
+                <option value="TERMINATED">Ausgetreten</option>
+                <option value="">Alle</option>
               </select>
             </div>
-            <div class="field" style="max-width:200px">
-              <select id="filterTeam" onchange="loadMembers()"><option value="">Alle Teams</option></select>
+            <div class="field" style="max-width:220px">
+              <select id="filterTeam" onchange="loadMembers()"><option value="">Alle Abteilungen</option></select>
             </div>
           </div>
           <button class="primary" onclick="openMemberForm(null)">+ Neues Mitglied</button>
         </div>
+
+        <details class="more-filters">
+          <summary>Weitere Filter <span id="moreFiltersBadge" class="filter-badge" hidden></span></summary>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label>Ort</label><input id="filterCity" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:100px"><label>Alter von</label><input id="filterAgeFrom" type="number" min="0" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:100px"><label>Alter bis</label><input id="filterAgeTo" type="number" min="0" oninput="debouncedLoadMembers()"></div>
+            <div class="field" style="max-width:160px"><label>Geschlecht</label>
+              <select id="filterGender" onchange="loadMembers()">
+                <option value="">Alle</option>
+                <option value="MALE">Männlich</option>
+                <option value="FEMALE">Weiblich</option>
+                <option value="DIVERSE">Divers</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div class="field"><label>Eintritt von</label><input id="filterJoinedFrom" type="date" onchange="loadMembers()"></div>
+            <div class="field"><label>Eintritt bis</label><input id="filterJoinedTo" type="date" onchange="loadMembers()"></div>
+            <div class="field"><label>Austritt von</label><input id="filterLeftFrom" type="date" onchange="loadMembers()"></div>
+            <div class="field"><label>Austritt bis</label><input id="filterLeftTo" type="date" onchange="loadMembers()"></div>
+          </div>
+        </details>
+
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Team</th><th>Beitragsklasse</th><th>Mitgl.-Nr.</th><th>Status</th></tr></thead>
+            <thead><tr>
+              <th class="sortable" onclick="sortMembers('membership_number')">Mitgl.-Nr.<span class="sort-arrow" data-col="membership_number"></span></th>
+              <th class="sortable" onclick="sortMembers('last_name')">Nachname<span class="sort-arrow" data-col="last_name"></span></th>
+              <th class="sortable" onclick="sortMembers('first_name')">Vorname<span class="sort-arrow" data-col="first_name"></span></th>
+              <th>Abteilung/Gruppe</th>
+              <th class="sortable" onclick="sortMembers('city')">Ort<span class="sort-arrow" data-col="city"></span></th>
+              <th>Telefon</th>
+              <th>E-Mail</th>
+              <th></th>
+            </tr></thead>
             <tbody id="membersBody"></tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- ── Mitglied-Detail / Formular ───────────────────────────────── -->
+    <!-- ── Mitglied-Detail ──────────────────────────────────────────── -->
     <section id="tabMemberDetail" hidden>
       <button class="link" onclick="showTab('members')">← Zurück zur Liste</button>
+
       <div class="card">
-        <h2 id="memberFormTitle">Neues Mitglied</h2>
-        <div class="grid2">
-          <div class="field"><label>Anrede</label><input id="mSalutation"></div>
-          <div class="field"><label>Team</label><select id="mTeam"><option value="">–</option></select></div>
-          <div class="field"><label>Vorname *</label><input id="mFirstName"></div>
-          <div class="field"><label>Nachname *</label><input id="mLastName"></div>
-          <div class="field"><label>Straße</label><input id="mStreet"></div>
-          <div class="field"><label>Hausnummer</label><input id="mHouseNumber"></div>
-          <div class="field"><label>PLZ</label><input id="mPostalCode"></div>
-          <div class="field"><label>Ort</label><input id="mCity"></div>
-          <div class="field"><label>E-Mail</label><input id="mEmail" type="email"></div>
-          <div class="field"><label>Telefon</label><input id="mPhone"></div>
-          <div class="field"><label>Geburtsdatum</label><input id="mBirthDate" type="date"></div>
-          <div class="field"><label>Mitgliedsnummer</label><input id="mMembershipNumber"></div>
-          <div class="field"><label>Beitragsklasse</label><select id="mMembershipType"><option value="">–</option></select></div>
-          <div class="field"><label>Status</label>
-            <select id="mStatus">
-              <option value="ACTIVE">Aktiv</option>
-              <option value="PAUSED">Ruhend</option>
-              <option value="TERMINATED">Gekündigt</option>
-            </select>
+        <div class="detail-header">
+          <div>
+            <div class="name" id="dhName">–</div>
+            <div class="meta">
+              <span id="dhMembershipNumber"></span>
+              <span id="dhStatusBadge"></span>
+              <span id="dhDepartment"></span>
+              <span id="dhCity"></span>
+            </div>
           </div>
-          <div class="field"><label>Eintrittsdatum</label><input id="mJoinedAt" type="date"></div>
-          <div class="field"><label>Austrittsdatum</label><input id="mLeftAt" type="date"></div>
+          <div class="detail-actions" id="dhActions"></div>
         </div>
-        <div class="field"><label>Notizen</label><textarea id="mNotes" rows="2"></textarea></div>
-        <button class="primary" onclick="saveMember()">Speichern</button>
         <div id="memberError" class="error"></div>
       </div>
 
-      <div id="detailSections" hidden>
-        <div class="card">
-          <div class="toolbar"><h2 style="margin:0">Ämter</h2><button onclick="addOffice()">+ Amt</button></div>
-          <div id="officesList"></div>
+      <div class="detail-tabs">
+        <button id="dtBtnOverview" class="active" onclick="showDetailTab('overview')">Übersicht</button>
+        <button id="dtBtnPersonal" onclick="showDetailTab('personal')">Persönliche Daten</button>
+        <button id="dtBtnMembership" onclick="showDetailTab('membership')">Mitgliedschaft &amp; Verein</button>
+        <button id="dtBtnPayment" onclick="showDetailTab('payment')">Beiträge &amp; Zahlung</button>
+        <button id="dtBtnOther" onclick="showDetailTab('other')">Weitere Daten</button>
+      </div>
+      <div class="detail-tab-content">
+        <div id="detailTabOverview"></div>
+        <div id="detailTabPersonal" hidden></div>
+        <div id="detailTabMembership" hidden></div>
+        <div id="detailTabPayment" hidden></div>
+        <div id="detailTabOther" hidden></div>
+      </div>
+    </section>
+
+    <!-- ── Abteilungen/Teams ────────────────────────────────────────── -->
+    <section id="tabDepartments" hidden>
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0">Abteilungen &amp; Teams</h2>
+          <button class="primary" onclick="addTeamNode(null)">+ Abteilung</button>
         </div>
-        <div class="card">
-          <div class="toolbar"><h2 style="margin:0">Erziehungsberechtigte</h2><button onclick="addGuardian()">+ Person</button></div>
-          <div id="guardiansList"></div>
-        </div>
-        <div class="card">
-          <div class="toolbar"><h2 style="margin:0">Beitragsfälligkeiten</h2><button onclick="addFee()">+ Fälligkeit</button></div>
-          <div id="feesList"></div>
-        </div>
+        <p class="muted" style="margin-bottom:10px">Abteilungen sind die oberste Ebene (z.B. Fußball, Indoor). Darunter beliebig tief verschachtelte Teams/Untergruppen (z.B. Fußball → Jugend → F1).</p>
+        <div id="teamsTree"></div>
       </div>
     </section>
 
@@ -228,6 +328,19 @@
       </div>
     </section>
   </main>
+
+  <!-- ── Generisches Modal (ersetzt prompt()-Ketten fuer Mehrfeld-Formulare) -->
+  <div id="modalOverlay" class="modal-overlay" hidden onclick="if (event.target === this) closeModal()">
+    <div class="modal">
+      <h3 id="modalTitle"></h3>
+      <div id="modalBody"></div>
+      <div id="modalError" class="error"></div>
+      <div class="modal-actions">
+        <button onclick="closeModal()">Abbrechen</button>
+        <button class="primary" onclick="modalSubmit()">Speichern</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -238,8 +351,8 @@ let searchDebounce = null;
 
 async function api(action, { method = 'GET', body } = {}) {
   const opts = { method, headers: {} };
-  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify({ action, ...body }); }
   const url = method === 'GET' ? `/api?action=${action}${queryFromBody(body)}` : '/api';
+  if (method !== 'GET') { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify({ action, ...body }); }
   const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Fehler');
@@ -251,6 +364,49 @@ function queryFromBody(body) {
   for (const [k, v] of Object.entries(body)) if (v !== undefined && v !== null && v !== '') params.set(k, v);
   const s = params.toString();
   return s ? `&${s}` : '';
+}
+
+// ── Generisches Modal ──────────────────────────────────────────────────
+// Ersetzt Ketten aus prompt()-Aufrufen bei Mehrfeld-Formularen (Aemter,
+// Erziehungsberechtigte, Beitragsfaelligkeiten, Beitragsklassen,
+// Abteilungen/Teams) durch ein echtes, touch-freundliches Formular.
+// fields: [{ id, label, type: 'text'|'number'|'date'|'email'|'select'|'checkbox', value, options }]
+let modalSubmitHandler = null;
+function openModal(title, fields, onSubmit) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = fields.map(f => {
+    if (f.type === 'checkbox') {
+      return `<div class="field"><label data-checkbox><input type="checkbox" id="modal_${f.id}" ${f.value ? 'checked' : ''}> ${escapeHtml(f.label)}</label></div>`;
+    }
+    if (f.type === 'select') {
+      const opts = f.options.map(o => `<option value="${escapeHtml(String(o.value))}" ${String(o.value) === String(f.value ?? '') ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+      return `<div class="field"><label>${escapeHtml(f.label)}</label><select id="modal_${f.id}">${opts}</select></div>`;
+    }
+    return `<div class="field"><label>${escapeHtml(f.label)}</label><input id="modal_${f.id}" type="${f.type || 'text'}" value="${escapeHtml(f.value ?? '')}"></div>`;
+  }).join('');
+  document.getElementById('modalError').textContent = '';
+  document.getElementById('modalOverlay').hidden = false;
+  document.getElementById('modal_' + fields[0].id)?.focus();
+  modalSubmitHandler = async () => {
+    const values = {};
+    for (const f of fields) {
+      const el = document.getElementById('modal_' + f.id);
+      values[f.id] = f.type === 'checkbox' ? el.checked : el.value;
+    }
+    try {
+      await onSubmit(values);
+      closeModal();
+    } catch (err) {
+      document.getElementById('modalError').textContent = err.message;
+    }
+  };
+}
+function closeModal() {
+  document.getElementById('modalOverlay').hidden = true;
+  modalSubmitHandler = null;
+}
+async function modalSubmit() {
+  if (modalSubmitHandler) await modalSubmitHandler();
 }
 
 async function login() {
@@ -285,11 +441,53 @@ async function showChangePassword() {
 function showTab(tab) {
   document.getElementById('tabMembers').hidden = tab !== 'members';
   document.getElementById('tabMemberDetail').hidden = tab !== 'memberDetail';
+  document.getElementById('tabDepartments').hidden = tab !== 'departments';
   document.getElementById('tabTypes').hidden = tab !== 'types';
   document.getElementById('tabBtnMembers').classList.toggle('active', tab === 'members');
+  document.getElementById('tabBtnDepartments').classList.toggle('active', tab === 'departments');
   document.getElementById('tabBtnTypes').classList.toggle('active', tab === 'types');
   if (tab === 'members') loadMembers();
+  if (tab === 'departments') loadDepartments();
   if (tab === 'types') loadTypes();
+}
+
+// ── Team-Baum: Hilfsfunktionen ────────────────────────────────────────
+// Baut aus der flachen Teams-Liste einen Baum (Kinder je Knoten).
+function buildTeamChildren(list) {
+  const byParent = new Map();
+  for (const t of list) {
+    const key = t.parent_id || 0;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(t);
+  }
+  for (const arr of byParent.values()) arr.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  return byParent;
+}
+// Liefert [{ ...team, depth }] in Baum-Reihenfolge (Tiefensuche).
+function flattenTeamTree(list) {
+  const byParent = buildTeamChildren(list);
+  const out = [];
+  (function walk(parentId, depth) {
+    for (const t of (byParent.get(parentId) || [])) {
+      out.push({ ...t, depth });
+      walk(t.id, depth + 1);
+    }
+  })(0, 0);
+  return out;
+}
+// Alle Nachfahren-IDs eines Knotens - beim Verschieben (Eltern aendern)
+// muss man verhindern, dass ein Knoten unter einen eigenen Nachfahren
+// gehaengt wird (Zyklus im Baum).
+function getDescendantIds(list, id) {
+  const byParent = buildTeamChildren(list);
+  const result = new Set();
+  (function walk(parentId) {
+    for (const t of (byParent.get(parentId) || [])) {
+      result.add(t.id);
+      walk(t.id);
+    }
+  })(id);
+  return result;
 }
 
 function debouncedLoadMembers() {
@@ -300,103 +498,935 @@ function debouncedLoadMembers() {
 async function loadLookups() {
   teams = await api('teams');
   membershipTypes = await api('membership-types');
-  const teamOpts = teams.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  document.getElementById('filterTeam').innerHTML = '<option value="">Alle Teams</option>' + teamOpts;
-  document.getElementById('mTeam').innerHTML = '<option value="">–</option>' + teamOpts;
-  const typeOpts = membershipTypes.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  document.getElementById('mMembershipType').innerHTML = '<option value="">–</option>' + typeOpts;
+  // Erst den kompletten Baum durchwandern (damit ein aktives Kind unter
+  // einer inaktiven Abteilung nicht verloren geht), dann erst inaktive
+  // Knoten aus der ANZEIGE herausfiltern - nicht umgekehrt.
+  const teamOpts = flattenTeamTree(teams).filter(t => t.active)
+    .map(t => `<option value="${t.id}">${'  '.repeat(t.depth)}${escapeHtml(t.name)}</option>`).join('');
+  document.getElementById('filterTeam').innerHTML = '<option value="">Alle Abteilungen</option>' + teamOpts;
 }
 
+let currentMembersRows = [];
+let membersSortColumn = 'last_name';
+let membersSortDir = 'asc';
+
 async function loadMembers() {
-  const search = document.getElementById('filterSearch').value.trim();
-  const status = document.getElementById('filterStatus').value;
-  const teamId = document.getElementById('filterTeam').value;
-  const rows = await api('members', { body: { search, status, teamId } });
-  document.getElementById('membersBody').innerHTML = rows.map(r => `
+  const filters = {
+    search: document.getElementById('filterSearch').value.trim(),
+    status: document.getElementById('filterStatus').value,
+    teamId: document.getElementById('filterTeam').value,
+    city: document.getElementById('filterCity').value.trim(),
+    gender: document.getElementById('filterGender').value,
+    ageFrom: document.getElementById('filterAgeFrom').value,
+    ageTo: document.getElementById('filterAgeTo').value,
+    joinedFrom: document.getElementById('filterJoinedFrom').value,
+    joinedTo: document.getElementById('filterJoinedTo').value,
+    leftFrom: document.getElementById('filterLeftFrom').value,
+    leftTo: document.getElementById('filterLeftTo').value,
+  };
+  // Badge am eingeklappten "Weitere Filter", damit der Filterzustand auch
+  // sichtbar bleibt, wenn die Sektion zugeklappt ist.
+  const { search, status, teamId, ...moreFilters } = filters;
+  document.getElementById('moreFiltersBadge').hidden = !Object.values(moreFilters).some(v => v);
+
+  currentMembersRows = await api('members', { body: filters });
+  renderMembersTable();
+}
+
+function sortMembers(column) {
+  membersSortDir = membersSortColumn === column && membersSortDir === 'asc' ? 'desc' : 'asc';
+  membersSortColumn = column;
+  renderMembersTable();
+}
+
+function renderMembersTable() {
+  const sorted = [...currentMembersRows].sort((a, b) => {
+    const cmp = String(a[membersSortColumn] ?? '').localeCompare(String(b[membersSortColumn] ?? ''), 'de', { numeric: true });
+    return membersSortDir === 'asc' ? cmp : -cmp;
+  });
+
+  document.querySelectorAll('.sort-arrow').forEach(el => {
+    el.classList.toggle('asc', el.dataset.col === membersSortColumn && membersSortDir === 'asc');
+    el.classList.toggle('desc', el.dataset.col === membersSortColumn && membersSortDir === 'desc');
+  });
+
+  document.getElementById('membersBody').innerHTML = sorted.map(r => `
     <tr class="clickable" onclick="openMemberForm(${r.player_id})">
-      <td>${escapeHtml(r.last_name)}, ${escapeHtml(r.first_name)}</td>
-      <td>${escapeHtml(r.team_name || '–')}</td>
-      <td>${escapeHtml(r.membership_type_name || '–')}</td>
       <td>${escapeHtml(r.membership_number || '–')}</td>
-      <td>${r.status ? `<span class="badge ${r.status}">${statusLabel(r.status)}</span>` : '<span class="muted">kein Mitglied</span>'}</td>
+      <td>${escapeHtml(r.last_name)}</td>
+      <td>${escapeHtml(r.first_name)}</td>
+      <td>${(r.teams || []).map(t => `<span class="team-tag">${escapeHtml(t.path)}</span>`).join('') || '<span class="muted">–</span>'}</td>
+      <td>${escapeHtml(r.city || '–')}</td>
+      <td>${escapeHtml(r.mobile_phone || r.phone || '–')}</td>
+      <td>${escapeHtml(r.email || '–')}</td>
+      <td>${statusNote(r)}</td>
     </tr>
-  `).join('') || '<tr><td colspan="5" class="muted">Keine Mitglieder gefunden.</td></tr>';
+  `).join('') || '<tr><td colspan="8" class="muted">Keine Mitglieder gefunden.</td></tr>';
+}
+
+// Nur Sonderfaelle hervorheben - ein normales aktives/ruhendes Mitglied
+// braucht keinen Stempel in jeder Zeile.
+function statusNote(r) {
+  if (r.effective_status === 'PENDING') return `<span class="status-note PENDING">Austritt ${formatDate(r.left_at)}</span>`;
+  if (r.effective_status === 'TERMINATED') return `<span class="status-note TERMINATED">Ausgetreten</span>`;
+  return '';
+}
+function formatDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}.${m}.${y}`;
 }
 
 function statusLabel(s) {
-  return { ACTIVE: 'Aktiv', PAUSED: 'Ruhend', TERMINATED: 'Gekündigt', OPEN: 'Offen', PAID: 'Bezahlt', OVERDUE: 'Überfällig' }[s] || s;
+  return { ACTIVE: 'Aktiv', PAUSED: 'Ruhend', TERMINATED: 'Ausgetreten', OPEN: 'Offen', PAID: 'Bezahlt', OVERDUE: 'Überfällig' }[s] || s;
+}
+
+// ── Mitglied-Detailseite: Zustand ──────────────────────────────────────
+let currentMember = null;       // komplette GET-member-Response, oder null fuer neues Mitglied
+let detailEditMode = false;
+let activeDetailTab = 'overview';
+let mailingAddressEnabled = false;
+let allCategories = [];
+// Familie/Zahler/Betreuer sind waehrend der Bearbeitung eigene Auswahl-
+// Variablen (nicht direkt currentMember.family_head_player_id), damit ein
+// "Mitglied waehlen..."/"entfernen" sofort im UI sichtbar ist, ohne schon
+// zu speichern.
+let selFamilyHeadId = null, selFamilyHead = null;
+let selPayerId = null, selPayer = null;
+let selSupervisorId = null, selSupervisor = null;
+
+function initEditState() {
+  selFamilyHeadId = currentMember?.family_head_player_id || null;
+  selFamilyHead = currentMember?.familyHead || null;
+  selPayerId = currentMember?.payer_player_id || null;
+  selPayer = currentMember?.payer || null;
+  selSupervisorId = currentMember?.supervisor_player_id || null;
+  selSupervisor = currentMember?.supervisor || null;
+  mailingAddressEnabled = !!(currentMember?.mailingAddress);
 }
 
 async function openMemberForm(playerId) {
   currentPlayerId = playerId;
   document.getElementById('memberError').textContent = '';
-  document.getElementById('memberFormTitle').textContent = playerId ? 'Mitglied bearbeiten' : 'Neues Mitglied';
-  document.getElementById('detailSections').hidden = !playerId;
-
-  for (const id of ['mSalutation','mTeam','mFirstName','mLastName','mStreet','mHouseNumber','mPostalCode','mCity',
-    'mEmail','mPhone','mBirthDate','mMembershipNumber','mMembershipType','mJoinedAt','mLeftAt','mNotes']) {
-    document.getElementById(id).value = '';
-  }
-  document.getElementById('mStatus').value = 'ACTIVE';
-
-  if (playerId) {
-    const m = await api('member', { body: { playerId } });
-    document.getElementById('mSalutation').value = m.salutation || '';
-    document.getElementById('mTeam').value = m.team_id || '';
-    document.getElementById('mFirstName').value = m.first_name || '';
-    document.getElementById('mLastName').value = m.last_name || '';
-    document.getElementById('mStreet').value = m.street || '';
-    document.getElementById('mHouseNumber').value = m.house_number || '';
-    document.getElementById('mPostalCode').value = m.postal_code || '';
-    document.getElementById('mCity').value = m.city || '';
-    document.getElementById('mEmail').value = m.email || '';
-    document.getElementById('mPhone').value = m.phone || '';
-    document.getElementById('mBirthDate').value = m.birth_date || '';
-    document.getElementById('mMembershipNumber').value = m.membership_number || '';
-    document.getElementById('mMembershipType').value = m.membership_type_id || '';
-    document.getElementById('mStatus').value = m.status || 'ACTIVE';
-    document.getElementById('mJoinedAt').value = m.joined_at || '';
-    document.getElementById('mLeftAt').value = m.left_at || '';
-    document.getElementById('mNotes').value = m.notes || '';
-
-    renderOffices(m.offices);
-    renderGuardians(m.guardians);
-    renderFees(m.fees);
-  }
+  currentMember = playerId ? await api('member', { body: { playerId } }) : null;
+  detailEditMode = !playerId;
+  initEditState();
+  renderMemberHeader();
+  renderAllDetailTabs();
+  showDetailTab(playerId ? activeDetailTab : 'personal');
 
   document.getElementById('tabMembers').hidden = true;
   document.getElementById('tabTypes').hidden = true;
+  document.getElementById('tabDepartments').hidden = true;
   document.getElementById('tabMemberDetail').hidden = false;
 }
 
-async function saveMember() {
-  const body = {
-    playerId: currentPlayerId || undefined,
-    salutation: document.getElementById('mSalutation').value.trim(),
-    teamId: document.getElementById('mTeam').value || undefined,
-    firstName: document.getElementById('mFirstName').value.trim(),
-    lastName: document.getElementById('mLastName').value.trim(),
-    street: document.getElementById('mStreet').value.trim(),
-    houseNumber: document.getElementById('mHouseNumber').value.trim(),
-    postalCode: document.getElementById('mPostalCode').value.trim(),
-    city: document.getElementById('mCity').value.trim(),
-    email: document.getElementById('mEmail').value.trim(),
-    phone: document.getElementById('mPhone').value.trim(),
-    birthDate: document.getElementById('mBirthDate').value || undefined,
-    membershipNumber: document.getElementById('mMembershipNumber').value.trim(),
-    membershipTypeId: document.getElementById('mMembershipType').value || undefined,
-    status: document.getElementById('mStatus').value,
-    joinedAt: document.getElementById('mJoinedAt').value || undefined,
-    leftAt: document.getElementById('mLeftAt').value || undefined,
-    notes: document.getElementById('mNotes').value.trim(),
-  };
+function showDetailTab(tab) {
+  activeDetailTab = tab;
+  const names = { overview: 'Overview', personal: 'Personal', membership: 'Membership', payment: 'Payment', other: 'Other' };
+  for (const [key, suffix] of Object.entries(names)) {
+    document.getElementById('detailTab' + suffix).hidden = key !== tab;
+    document.getElementById('dtBtn' + suffix).classList.toggle('active', key === tab);
+  }
+}
+
+function effectiveStatus(m) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (m.status === 'TERMINATED') return 'TERMINATED';
+  if (m.left_at && m.left_at <= today) return 'TERMINATED';
+  if (m.left_at && m.left_at > today) return 'PENDING';
+  return m.status || 'ACTIVE';
+}
+function statusBadgeLabel(s) {
+  return { ACTIVE: 'Aktiv', PAUSED: 'Ruhend', PENDING: 'Austritt vorgemerkt', TERMINATED: 'Ausgetreten' }[s] || s;
+}
+function genderLabel(g) { return { MALE: 'Männlich', FEMALE: 'Weiblich', DIVERSE: 'Divers' }[g] || '–'; }
+function ageFromBirthDate(d) {
+  const birth = new Date(d);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const mo = today.getMonth() - birth.getMonth();
+  if (mo < 0 || (mo === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+function memberChipHtml(m) {
+  if (!m) return '<span class="muted">–</span>';
+  const label = `${m.first_name} ${m.last_name}${m.membership_number ? ' · ' + m.membership_number : ''}`;
+  return `<span class="chip linkable" onclick="openMemberForm(${m.id})">${escapeHtml(label)}</span>`;
+}
+
+function renderMemberHeader() {
+  const m = currentMember;
+  if (!m) {
+    document.getElementById('dhName').textContent = 'Neues Mitglied';
+    document.getElementById('dhMembershipNumber').textContent = '';
+    document.getElementById('dhStatusBadge').innerHTML = '';
+    document.getElementById('dhDepartment').textContent = '';
+    document.getElementById('dhCity').textContent = '';
+    document.getElementById('dhActions').innerHTML = `
+      <button class="primary" onclick="saveMemberDetail()">Speichern</button>
+      <button onclick="cancelMemberEdit()">Abbrechen</button>
+    `;
+    return;
+  }
+  document.getElementById('dhName').textContent = `${m.first_name} ${m.last_name}`;
+  document.getElementById('dhMembershipNumber').innerHTML = m.membership_number ? escapeHtml(m.membership_number) : '<span class="muted">keine Mitgl.-Nr.</span>';
+  const st = effectiveStatus(m);
+  document.getElementById('dhStatusBadge').innerHTML = `<span class="sep">·</span><span class="badge ${st}">${statusBadgeLabel(st)}</span>`;
+  const topDept = (m.teams || [])[0];
+  document.getElementById('dhDepartment').innerHTML = topDept ? `<span class="sep">·</span>${escapeHtml(topDept.path)}` : '';
+  document.getElementById('dhCity').innerHTML = m.city ? `<span class="sep">·</span>${escapeHtml(m.city)}` : '';
+
+  if (detailEditMode) {
+    document.getElementById('dhActions').innerHTML = `
+      <button class="primary" onclick="saveMemberDetail()">Speichern</button>
+      <button onclick="cancelMemberEdit()">Abbrechen</button>
+    `;
+  } else {
+    document.getElementById('dhActions').innerHTML = `
+      <button class="primary" onclick="enterEditMode()">Bearbeiten</button>
+      <button onclick="recordExit()">Austritt erfassen</button>
+      <button onclick="toggleMemberActive()">${m.status === 'PAUSED' ? 'Aktivieren' : 'Deaktivieren'}</button>
+    `;
+  }
+}
+
+function enterEditMode() {
+  detailEditMode = true;
+  initEditState();
+  renderMemberHeader();
+  renderAllDetailTabs();
+}
+async function cancelMemberEdit() {
+  detailEditMode = false;
+  if (currentPlayerId) await openMemberForm(currentPlayerId);
+  else showTab('members');
+}
+async function saveMemberDetail() {
+  document.getElementById('memberError').textContent = '';
   try {
-    const result = await api('member', { method: 'POST', body });
+    const result = await api('member', { method: 'POST', body: buildFullMemberBody() });
     currentPlayerId = result.playerId;
+    detailEditMode = false;
     await openMemberForm(currentPlayerId);
   } catch (err) {
     document.getElementById('memberError').textContent = err.message;
   }
+}
+function recordExit() {
+  openModal('Austritt erfassen', [
+    { id: 'leftAt', label: 'Austrittsdatum', type: 'date', value: currentMember.left_at || new Date().toISOString().slice(0, 10) },
+    { id: 'exitReason', label: 'Austrittsgrund (optional)', value: currentMember.exit_reason || '' },
+  ], async v => {
+    if (!v.leftAt) throw new Error('Austrittsdatum erforderlich');
+    await api('member', { method: 'POST', body: buildFullMemberBody({ leftAt: v.leftAt, exitReason: v.exitReason }) });
+    await openMemberForm(currentPlayerId);
+  });
+}
+async function toggleMemberActive() {
+  const nextStatus = currentMember.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED';
+  const label = nextStatus === 'ACTIVE' ? 'aktivieren' : 'deaktivieren (auf Ruhend setzen)';
+  if (!confirm(`Mitglied wirklich ${label}?`)) return;
+  await api('member', { method: 'POST', body: buildFullMemberBody({ status: nextStatus }) });
+  await openMemberForm(currentPlayerId);
+}
+
+// Liest ein Feld aus dem DOM (Bearbeitungsmodus) oder faellt auf den
+// zwischengespeicherten Wert zurueck (Lesemodus / Feld gerade nicht
+// gerendert) - dadurch senden auch Schnellaktionen (Austritt erfassen,
+// Deaktivieren), die ausserhalb des Bearbeiten-Modus laufen, den
+// vollstaendigen aktuellen Datensatz statt ihn versehentlich zu leeren.
+function val(id, fallback) {
+  const el = document.getElementById(id);
+  if (!el) return fallback ?? '';
+  if (el.type === 'checkbox') return el.checked;
+  return el.value;
+}
+function fieldHtml(label, id, value, opts = {}) {
+  const { type = 'text', options = null, textarea = false } = opts;
+  if (!detailEditMode) {
+    let display;
+    if (type === 'checkbox') display = value ? 'Ja' : 'Nein';
+    else if (options) { const o = options.find(o => String(o.value) === String(value ?? '')); display = o ? o.label : (value || ''); }
+    else display = value ?? '';
+    const isEmpty = display === '' || display === null || display === undefined;
+    return `<div class="field"><label>${escapeHtml(label)}</label><div class="ro-value${isEmpty ? ' empty' : ''}">${escapeHtml(isEmpty ? '–' : display)}</div></div>`;
+  }
+  if (type === 'checkbox') {
+    return `<div class="field"><label data-checkbox><input type="checkbox" id="${id}" ${value ? 'checked' : ''}> ${escapeHtml(label)}</label></div>`;
+  }
+  if (options) {
+    const opts_ = options.map(o => `<option value="${escapeHtml(String(o.value))}" ${String(o.value) === String(value ?? '') ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+    return `<div class="field"><label>${escapeHtml(label)}</label><select id="${id}">${opts_}</select></div>`;
+  }
+  if (textarea) {
+    return `<div class="field"><label>${escapeHtml(label)}</label><textarea id="${id}" rows="2">${escapeHtml(value ?? '')}</textarea></div>`;
+  }
+  return `<div class="field"><label>${escapeHtml(label)}</label><input id="${id}" type="${type}" value="${escapeHtml(value ?? '')}"></div>`;
+}
+
+// ── Verlinkte Mitglieder (Familie/Zahler/Betreuer) ─────────────────────
+function openMemberPickerModal(title, onPick) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalError').textContent = '';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><input id="modalPickerSearch" placeholder="Name oder Mitgl.-Nr. suchen..." oninput="modalPickerSearchTrigger()"></div>
+    <div id="modalPickerResults" class="muted">Suchbegriff eingeben...</div>
+  `;
+  document.getElementById('modalOverlay').hidden = false;
+  document.getElementById('modalPickerSearch').focus();
+  modalPickerOnPick = onPick;
+  modalSubmitHandler = async () => { closeModal(); };
+}
+let modalPickerOnPick = null;
+let modalPickerDebounce = null;
+let modalPickerResultsCache = [];
+function modalPickerSearchTrigger() {
+  clearTimeout(modalPickerDebounce);
+  modalPickerDebounce = setTimeout(async () => {
+    const q = document.getElementById('modalPickerSearch').value.trim();
+    if (!q) { document.getElementById('modalPickerResults').innerHTML = '<span class="muted">Suchbegriff eingeben...</span>'; modalPickerResultsCache = []; return; }
+    const rows = await api('members', { body: { search: q, status: '' } });
+    modalPickerResultsCache = rows.filter(r => r.player_id !== currentPlayerId).slice(0, 15);
+    document.getElementById('modalPickerResults').innerHTML = modalPickerResultsCache.map((r, idx) => `
+      <div class="list-item" style="cursor:pointer" onclick="modalPickerChoose(${idx})">
+        <div><strong>${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</strong> <span class="muted">${escapeHtml(r.membership_number || '')}</span></div>
+      </div>
+    `).join('') || '<span class="muted">Keine Treffer.</span>';
+  }, 250);
+}
+function modalPickerChoose(idx) {
+  const r = modalPickerResultsCache[idx];
+  if (r && modalPickerOnPick) modalPickerOnPick({ id: r.player_id, first_name: r.first_name, last_name: r.last_name, membership_number: r.membership_number });
+  closeModal();
+}
+
+function linkedMemberFieldFamily() {
+  if (!detailEditMode) return memberChipHtml(currentMember?.familyHead);
+  const chip = selFamilyHead ? `<span class="chip">${escapeHtml(selFamilyHead.first_name + ' ' + selFamilyHead.last_name)}<button type="button" onclick="selFamilyHeadId=null;selFamilyHead=null;renderAllDetailTabs();">×</button></span>` : '<span class="muted">–</span>';
+  return `<div>${chip} <button type="button" onclick="pickFamilyHead()">Mitglied wählen…</button></div>`;
+}
+function pickFamilyHead() {
+  openMemberPickerModal('Familienoberhaupt wählen', chosen => { selFamilyHeadId = chosen.id; selFamilyHead = chosen; renderAllDetailTabs(); });
+}
+function linkedMemberFieldSupervisor() {
+  if (!detailEditMode) return memberChipHtml(currentMember?.supervisor);
+  const chip = selSupervisor ? `<span class="chip">${escapeHtml(selSupervisor.first_name + ' ' + selSupervisor.last_name)}<button type="button" onclick="selSupervisorId=null;selSupervisor=null;renderAllDetailTabs();">×</button></span>` : '<span class="muted">–</span>';
+  return `<div>${chip} <button type="button" onclick="pickSupervisor()">Mitglied wählen…</button></div>`;
+}
+function pickSupervisor() {
+  openMemberPickerModal('Betreuer wählen', chosen => { selSupervisorId = chosen.id; selSupervisor = chosen; renderAllDetailTabs(); });
+}
+function linkedMemberFieldPayer() {
+  if (!detailEditMode) return memberChipHtml(currentMember?.payer);
+  const chip = selPayer ? `<span class="chip">${escapeHtml(selPayer.first_name + ' ' + selPayer.last_name)}<button type="button" onclick="selPayerId=null;selPayer=null;renderAllDetailTabs();">×</button></span>` : '<span class="muted">Selbstzahler</span>';
+  return `<div>${chip} <button type="button" onclick="pickPayer()">Mitglied wählen…</button></div>`;
+}
+function pickPayer() {
+  openMemberPickerModal('Zahler wählen', chosen => { selPayerId = chosen.id; selPayer = chosen; renderAllDetailTabs(); });
+}
+
+// ── Team-Picker (innerhalb der Detailseite) ────────────────────────────
+// Lesemodus: reine Chip-Anzeige. Bearbeitungsmodus: interaktive
+// Checkbox-Liste (gleiches Muster wie zuvor der globale Team-Picker).
+function renderTeamPickerInto(containerId, selectedIds) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const selected = new Set(selectedIds.map(Number));
+  if (!detailEditMode) {
+    const chips = flattenTeamTree(teams).filter(t => selected.has(t.id)).map(t => `<span class="team-tag">${escapeHtml(t.name)}</span>`).join('');
+    el.innerHTML = chips || '<span class="muted">Keine Zuordnung.</span>';
+    return;
+  }
+  const visible = flattenTeamTree(teams).filter(t => t.active || selected.has(t.id));
+  el.innerHTML = visible.map(t => `
+    <label style="padding-left:${t.depth * 18}px">
+      <input type="checkbox" value="${t.id}" ${selected.has(t.id) ? 'checked' : ''}>
+      ${escapeHtml(t.name)}${t.active ? '' : ' <span class="muted">(inaktiv)</span>'}
+    </label>
+  `).join('') || '<span class="muted">Noch keine Abteilungen angelegt.</span>';
+}
+function getSelectedTeamIds() {
+  const box = document.getElementById('membershipTeamsPicker');
+  const checkboxes = box ? box.querySelectorAll('input[type="checkbox"]') : [];
+  if (!checkboxes.length) return (currentMember?.teams || []).map(t => t.id);
+  return [...checkboxes].filter(el => el.checked).map(el => Number(el.value));
+}
+
+// ── Kategorien (Tags) ───────────────────────────────────────────────────
+function renderCategoryChips() {
+  const el = document.getElementById('categoryChips');
+  if (!el) return;
+  if (!currentMember) { el.innerHTML = '<p class="muted">Nach dem ersten Speichern verfügbar.</p>'; return; }
+  el.innerHTML = (currentMember.categories || []).map(c => `
+    <span class="chip">${escapeHtml(c.name)}<button onclick="removeCategoryFromMember(${c.id})">×</button></span>
+  `).join('') || '<span class="muted">Keine Kategorien zugewiesen.</span>';
+}
+async function addCategoryToMember() {
+  if (!allCategories.length) allCategories = await api('categories');
+  const assignedIds = new Set((currentMember.categories || []).map(c => c.id));
+  const available = allCategories.filter(c => !assignedIds.has(c.id));
+  openModal('Kategorie hinzufügen', [
+    { id: 'categoryId', label: 'Vorhandene Kategorie', type: 'select', options: [{ value: '', label: '– auswählen –' }, ...available.map(c => ({ value: c.id, label: c.name }))] },
+    { id: 'newName', label: 'oder neue Kategorie anlegen' },
+  ], async v => {
+    let categoryId = v.categoryId ? Number(v.categoryId) : null;
+    if (!categoryId && v.newName.trim()) {
+      const created = await api('category', { method: 'POST', body: { name: v.newName.trim() } });
+      categoryId = created.id;
+      allCategories = await api('categories');
+    }
+    if (!categoryId) throw new Error('Bitte eine Kategorie auswählen oder neuen Namen eingeben.');
+    await api('member-category', { method: 'POST', body: { playerId: currentPlayerId, categoryId } });
+    currentMember = await api('member', { body: { playerId: currentPlayerId } });
+    renderCategoryChips();
+  });
+}
+async function removeCategoryFromMember(categoryId) {
+  if (!confirm('Kategorie wirklich entfernen?')) return;
+  await api('member-category-delete', { method: 'POST', body: { playerId: currentPlayerId, categoryId } });
+  currentMember = await api('member', { body: { playerId: currentPlayerId } });
+  renderCategoryChips();
+}
+
+// ── Ehrungen ────────────────────────────────────────────────────────────
+function renderHonors(honors) {
+  document.getElementById('honorsList').innerHTML = (honors || []).map(h => `
+    <div class="list-item">
+      <div><strong>${escapeHtml(h.title)}</strong><div class="muted">${h.honor_date ? formatDate(h.honor_date) : ''} ${h.note ? '· ' + escapeHtml(h.note) : ''}</div></div>
+      <button class="danger" onclick="deleteHonor(${h.id})">Löschen</button>
+    </div>
+  `).join('') || '<div class="muted">Keine Ehrungen hinterlegt.</div>';
+}
+function addHonor() {
+  openModal('Ehrung hinzufügen', [
+    { id: 'title', label: 'Ehrung' },
+    { id: 'honorDate', label: 'Datum', type: 'date' },
+    { id: 'note', label: 'Bemerkung' },
+  ], async v => {
+    if (!v.title.trim()) throw new Error('Bezeichnung erforderlich');
+    await api('honor', { method: 'POST', body: { playerId: currentPlayerId, title: v.title.trim(), honorDate: v.honorDate, note: v.note } });
+    currentMember = await api('member', { body: { playerId: currentPlayerId } });
+    renderHonors(currentMember.honors);
+  });
+}
+async function deleteHonor(id) {
+  if (!confirm('Ehrung wirklich löschen?')) return;
+  await api('honor-delete', { method: 'POST', body: { id } });
+  currentMember = await api('member', { body: { playerId: currentPlayerId } });
+  renderHonors(currentMember.honors);
+}
+
+// ── Leistungen ──────────────────────────────────────────────────────────
+function renderServices(services) {
+  document.getElementById('servicesList').innerHTML = (services || []).map(s => `
+    <div class="list-item">
+      <div><strong>${escapeHtml(s.label)}</strong><div class="muted">${s.service_date ? formatDate(s.service_date) : ''} ${s.note ? '· ' + escapeHtml(s.note) : ''}</div></div>
+      <button class="danger" onclick="deleteService(${s.id})">Löschen</button>
+    </div>
+  `).join('') || '<div class="muted">Keine Leistungen hinterlegt.</div>';
+}
+function addService() {
+  openModal('Leistung hinzufügen', [
+    { id: 'label', label: 'Bezeichnung' },
+    { id: 'serviceDate', label: 'Datum', type: 'date' },
+    { id: 'note', label: 'Bemerkung' },
+  ], async v => {
+    if (!v.label.trim()) throw new Error('Bezeichnung erforderlich');
+    await api('service', { method: 'POST', body: { playerId: currentPlayerId, label: v.label.trim(), serviceDate: v.serviceDate, note: v.note } });
+    currentMember = await api('member', { body: { playerId: currentPlayerId } });
+    renderServices(currentMember.services);
+  });
+}
+async function deleteService(id) {
+  if (!confirm('Leistung wirklich löschen?')) return;
+  await api('service-delete', { method: 'POST', body: { id } });
+  currentMember = await api('member', { body: { playerId: currentPlayerId } });
+  renderServices(currentMember.services);
+}
+
+// ── Eigene Felder ───────────────────────────────────────────────────────
+function renderCustomFields(fields) {
+  document.getElementById('customFieldsList').innerHTML = (fields || []).map(f => `
+    <div class="list-item">
+      <div><strong>${escapeHtml(f.field_key)}</strong>: ${escapeHtml(f.field_value || '')}</div>
+      <button class="danger" onclick="deleteCustomField(${f.id})">Löschen</button>
+    </div>
+  `).join('') || '<div class="muted">Keine eigenen Felder hinterlegt.</div>';
+}
+function addCustomField() {
+  openModal('Eigenes Feld hinzufügen', [
+    { id: 'fieldKey', label: 'Feldname' },
+    { id: 'fieldValue', label: 'Wert' },
+  ], async v => {
+    if (!v.fieldKey.trim()) throw new Error('Feldname erforderlich');
+    await api('custom-field', { method: 'POST', body: { playerId: currentPlayerId, fieldKey: v.fieldKey.trim(), fieldValue: v.fieldValue } });
+    currentMember = await api('member', { body: { playerId: currentPlayerId } });
+    renderCustomFields(currentMember.customFields);
+  });
+}
+async function deleteCustomField(id) {
+  if (!confirm('Feld wirklich löschen?')) return;
+  await api('custom-field-delete', { method: 'POST', body: { id } });
+  currentMember = await api('member', { body: { playerId: currentPlayerId } });
+  renderCustomFields(currentMember.customFields);
+}
+
+// ── Mitgliedsbild ───────────────────────────────────────────────────────
+function renderPhotoSection() {
+  const el = document.getElementById('photoSection');
+  if (!el) return;
+  if (!currentMember) { el.innerHTML = '<p class="muted">Nach dem ersten Speichern verfügbar.</p>'; return; }
+  const img = currentMember.hasPhoto
+    ? `<img class="photo-preview" src="/api?action=member-photo&playerId=${currentMember.id}&_=${Date.now()}">`
+    : `<div class="photo-preview"></div>`;
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+      ${img}
+      <div>
+        <input type="file" id="photoFileInput" accept="image/*">
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button onclick="uploadMemberPhoto()">Hochladen/Ersetzen</button>
+          ${currentMember.hasPhoto ? '<button class="danger" onclick="deleteMemberPhoto()">Entfernen</button>' : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function uploadMemberPhoto() {
+  const input = document.getElementById('photoFileInput');
+  const file = input.files[0];
+  if (!file) { alert('Bitte zuerst eine Datei auswählen.'); return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await api('member-photo', { method: 'POST', body: { playerId: currentPlayerId, imageBase64: reader.result } });
+      currentMember = await api('member', { body: { playerId: currentPlayerId } });
+      renderPhotoSection();
+    } catch (err) { alert(err.message); }
+  };
+  reader.readAsDataURL(file);
+}
+async function deleteMemberPhoto() {
+  if (!confirm('Bild wirklich entfernen?')) return;
+  await api('member-photo-delete', { method: 'POST', body: { playerId: currentPlayerId } });
+  currentMember = await api('member', { body: { playerId: currentPlayerId } });
+  renderPhotoSection();
+}
+
+// ── Postanschrift ───────────────────────────────────────────────────────
+function toggleMailingAddress() {
+  mailingAddressEnabled = document.getElementById('oth_mailingAddressEnabled').checked;
+  renderMailingAddressFields();
+}
+function renderMailingAddressFields() {
+  const el = document.getElementById('mailingAddressFields');
+  if (!el) return;
+  if (!mailingAddressEnabled) { el.innerHTML = ''; return; }
+  const ma = currentMember?.mailingAddress || {};
+  el.innerHTML = `<div class="grid2">
+    ${fieldHtml('Empfänger', 'ma_recipient', ma.recipient)}
+    ${fieldHtml('Straße', 'ma_street', ma.street)}
+    ${fieldHtml('Hausnummer', 'ma_houseNumber', ma.house_number)}
+    ${fieldHtml('PLZ', 'ma_postalCode', ma.postal_code)}
+    ${fieldHtml('Ort', 'ma_city', ma.city)}
+    ${fieldHtml('Land', 'ma_country', ma.country)}
+  </div>`;
+}
+
+// ── Reiter-Inhalte ──────────────────────────────────────────────────────
+function renderAllDetailTabs() {
+  document.getElementById('detailTabOverview').innerHTML = renderOverviewTab();
+  document.getElementById('detailTabPersonal').innerHTML = renderPersonalTab();
+  document.getElementById('detailTabMembership').innerHTML = renderMembershipTab();
+  document.getElementById('detailTabPayment').innerHTML = renderPaymentTab();
+  document.getElementById('detailTabOther').innerHTML = renderOtherTab();
+
+  renderTeamPickerInto('membershipTeamsPicker', (currentMember?.teams || []).map(t => t.id));
+  renderCategoryChips();
+  renderOffices(currentMember?.offices || []);
+  renderGuardians(currentMember?.guardians || []);
+  renderFees(currentMember?.fees || []);
+  renderHonors(currentMember?.honors || []);
+  renderServices(currentMember?.services || []);
+  renderCustomFields(currentMember?.customFields || []);
+  renderMailingAddressFields();
+  renderPhotoSection();
+}
+
+function renderOverviewTab() {
+  const m = currentMember;
+  if (!m) return '<p class="muted">Nach dem ersten Speichern verfügbar.</p>';
+  const teamsHtml = (m.teams || []).map(t => `<span class="team-tag">${escapeHtml(t.path)}</span>`).join('') || '<span class="muted">–</span>';
+  const officesHtml = (m.offices || []).map(o => escapeHtml(o.title)).join(', ') || '–';
+  const feesHtml = (m.fees || []).map(f => `${f.year}: ${Number(f.amount_due).toFixed(2)} € (${statusLabel(f.status)})`).join('<br>') || '–';
+  const pay = m.paymentDetails || {};
+  return `
+    <div class="detail-section">
+      <h3>Person</h3>
+      <div class="grid2">
+        <div class="field"><label>Mitgliedsnummer</label><div class="ro-value">${escapeHtml(m.membership_number || '–')}</div></div>
+        <div class="field"><label>Anrede</label><div class="ro-value">${escapeHtml(m.salutation || '–')}</div></div>
+        <div class="field"><label>Titel</label><div class="ro-value">${escapeHtml(m.personalDetails?.title || '–')}</div></div>
+        <div class="field"><label>Name</label><div class="ro-value">${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)} ${escapeHtml(m.personalDetails?.name_suffix || '')}</div></div>
+        <div class="field"><label>Geburtsdatum</label><div class="ro-value">${m.birth_date ? formatDate(m.birth_date) + ' (' + ageFromBirthDate(m.birth_date) + ' Jahre)' : '–'}</div></div>
+        <div class="field"><label>Geschlecht</label><div class="ro-value">${genderLabel(m.gender)}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Kontakt</h3>
+      <div class="grid2">
+        <div class="field"><label>Mobiltelefon</label><div class="ro-value">${escapeHtml(m.mobile_phone || '–')}</div></div>
+        <div class="field"><label>Telefon</label><div class="ro-value">${escapeHtml(m.phone || '–')}</div></div>
+        <div class="field"><label>E-Mail</label><div class="ro-value">${escapeHtml(m.email || '–')}</div></div>
+        <div class="field"><label>Anschrift</label><div class="ro-value">${escapeHtml([m.street, m.house_number].filter(Boolean).join(' ') || '–')}${m.postal_code || m.city ? ', ' + escapeHtml([m.postal_code, m.city].filter(Boolean).join(' ')) : ''}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Mitgliedschaft</h3>
+      <div class="grid2">
+        <div class="field"><label>Status</label><div class="ro-value"><span class="badge ${effectiveStatus(m)}">${statusBadgeLabel(effectiveStatus(m))}</span></div></div>
+        <div class="field"><label>Eintritt</label><div class="ro-value">${m.joined_at ? formatDate(m.joined_at) : '–'}</div></div>
+        <div class="field"><label>Austritt</label><div class="ro-value">${m.left_at ? formatDate(m.left_at) : '–'}</div></div>
+        <div class="field"><label>Abteilung(en)</label><div class="ro-value">${teamsHtml}</div></div>
+        <div class="field"><label>Funktion(en)</label><div class="ro-value">${officesHtml}</div></div>
+        <div class="field"><label>Betreuer</label><div class="ro-value">${memberChipHtml(m.supervisor)}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Beitrags-/Zahlungsübersicht</h3>
+      <div class="grid2">
+        <div class="field"><label>Zahler</label><div class="ro-value">${m.payer ? memberChipHtml(m.payer) : 'Selbstzahler'}</div></div>
+        <div class="field"><label>Zahlart</label><div class="ro-value">${escapeHtml(pay.payment_method || '–')}</div></div>
+        <div class="field"><label>Zahlungsintervall</label><div class="ro-value">${escapeHtml(pay.payment_interval || '–')}</div></div>
+        <div class="field"><label>Nächste Buchung</label><div class="ro-value">${escapeHtml(pay.next_booking_note || 'keine automatische Buchung erzeugt')}</div></div>
+      </div>
+      <div class="field"><label>Zugeordnete Beiträge</label><div class="ro-value">${feesHtml}</div></div>
+    </div>
+    <div class="detail-section">
+      <h3>Familie / Beziehungen</h3>
+      <div class="grid2">
+        <div class="field"><label>Familienzugehörigkeit zu</label><div class="ro-value">${memberChipHtml(m.familyHead)}</div></div>
+        <div class="field"><label>Weitere Familienmitglieder</label><div class="ro-value">${(m.familyMembers || []).map(x => memberChipHtml(x)).join(' ') || '–'}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Bemerkungen</h3>
+      <div class="ro-value">${escapeHtml(m.notes || '–')}</div>
+    </div>
+  `;
+}
+
+function renderPersonalTab() {
+  const m = currentMember || {};
+  const pd = m.personalDetails || {};
+  return `
+    <div class="detail-section">
+      <h3>Stammdaten</h3>
+      <div class="grid2">
+        <div class="field"><label>Mitgliedsnummer</label><div class="ro-value">${escapeHtml(m.membership_number || '–')}</div></div>
+        ${fieldHtml('Anrede', 'pd_salutation', m.salutation)}
+        ${fieldHtml('Titel', 'pd_title', pd.title)}
+        ${fieldHtml('Vorname', 'pd_firstName', m.first_name)}
+        ${fieldHtml('Nachname', 'pd_lastName', m.last_name)}
+        ${fieldHtml('Namenszusatz', 'pd_nameSuffix', pd.name_suffix)}
+        ${fieldHtml('Geschlecht', 'pd_gender', m.gender, { options: [{ value: '', label: '–' }, { value: 'MALE', label: 'Männlich' }, { value: 'FEMALE', label: 'Weiblich' }, { value: 'DIVERSE', label: 'Divers' }] })}
+        ${fieldHtml('Familienstand', 'pd_maritalStatus', pd.marital_status)}
+        ${fieldHtml('Debitoren-Nr.', 'pd_debtorNumber', pd.debtor_number)}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Adresse</h3>
+      <div class="grid2">
+        ${fieldHtml('Straße', 'pd_street', m.street)}
+        ${fieldHtml('Hausnummer', 'pd_houseNumber', m.house_number)}
+        ${fieldHtml('PLZ', 'pd_postalCode', m.postal_code)}
+        ${fieldHtml('Ort', 'pd_city', m.city)}
+        ${fieldHtml('Land', 'pd_country', pd.country)}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Familienzugehörigkeit</h3>
+      <div class="grid2">
+        <div class="field"><label>Gehört zur Familie von</label>${linkedMemberFieldFamily()}</div>
+        <div class="field"><label>Weitere Mitglieder dieser Familie</label><div class="ro-value">${(m.familyMembers || []).map(x => memberChipHtml(x)).join(' ') || '–'}</div></div>
+      </div>
+      <div class="subsection">
+        <div class="toolbar"><h3 style="margin:0">Erziehungsberechtigte</h3>${currentMember ? '<button onclick="addGuardian()">+ Person</button>' : ''}</div>
+        <div id="guardiansList"></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Geburt</h3>
+      <div class="grid2">
+        ${fieldHtml('Geburtsdatum', 'pd_birthDate', m.birth_date, { type: 'date' })}
+        ${fieldHtml('Geburtsort', 'pd_birthPlace', pd.birth_place)}
+        <div class="field"><label>Alter</label><div class="ro-value">${m.birth_date ? ageFromBirthDate(m.birth_date) + ' Jahre' : '–'}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Kontakt</h3>
+      <div class="grid2">
+        ${fieldHtml('Telefon 1', 'pd_phone', m.phone)}
+        ${fieldHtml('Mobiltelefon', 'pd_mobilePhone', m.mobile_phone)}
+        ${fieldHtml('Telefax', 'pd_fax', pd.fax)}
+        ${fieldHtml('E-Mail', 'pd_email', m.email, { type: 'email' })}
+        ${fieldHtml('Web/Website', 'pd_website', pd.website)}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Status</h3>
+      <div class="grid2">
+        <div class="field"><label>Aktives Mitglied</label><div class="ro-value">${m.status && m.status !== 'TERMINATED' ? 'Ja' : 'Nein'}</div></div>
+        <div class="field"><label>Eintritt</label><div class="ro-value">${m.joined_at ? formatDate(m.joined_at) : '–'}</div></div>
+        <div class="field"><label>Austritt</label><div class="ro-value">${m.left_at ? formatDate(m.left_at) : '–'}</div></div>
+      </div>
+      <p class="muted">Wird im Reiter "Mitgliedschaft &amp; Verein" gepflegt.</p>
+    </div>
+    <div class="detail-section">
+      <h3>Belegarchiv</h3>
+      <p class="placeholder-note">Belegverwaltung ist in dieser Version noch nicht umgesetzt.</p>
+    </div>
+    <div class="detail-section">
+      <h3>Sonstiges</h3>
+      <div class="grid2">
+        ${fieldHtml('Mit Outlook synchronisieren', 'pd_syncOutlook', !!m.sync_outlook, { type: 'checkbox' })}
+        ${fieldHtml('Mitglied nicht mahnen', 'pd_doNotDun', !!m.do_not_dun, { type: 'checkbox' })}
+      </div>
+    </div>
+  `;
+}
+
+function renderMembershipTab() {
+  const m = currentMember || {};
+  return `
+    <div class="detail-section">
+      <h3>Mitgliedschaft</h3>
+      <div class="grid2">
+        ${fieldHtml('Beitragsklasse', 'mv_membershipType', m.membership_type_id, { options: [{ value: '', label: '–' }, ...membershipTypes.map(t => ({ value: t.id, label: t.name }))] })}
+        ${fieldHtml('Status', 'mv_status', m.status || 'ACTIVE', { options: [{ value: 'ACTIVE', label: 'Aktiv' }, { value: 'PAUSED', label: 'Ruhend' }, { value: 'TERMINATED', label: 'Ausgetreten' }] })}
+        ${fieldHtml('Eintrittsdatum', 'mv_joinedAt', m.joined_at, { type: 'date' })}
+        ${fieldHtml('Austrittsdatum', 'mv_leftAt', m.left_at, { type: 'date' })}
+        ${fieldHtml('Austrittsgrund', 'mv_exitReason', m.exit_reason)}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Vereinsdaten</h3>
+      <div class="grid2">
+        ${fieldHtml('Mitgliedsnummer', 'mv_membershipNumber', m.membership_number)}
+        <div class="field"><label>Betreuer</label>${linkedMemberFieldSupervisor()}</div>
+      </div>
+      <div class="field">
+        <label>Abteilung(en)/Team(s)</label>
+        <div id="membershipTeamsPicker" class="team-picker"></div>
+      </div>
+      <div class="subsection">
+        <div class="toolbar"><h3 style="margin:0">Funktion(en)/Ämter</h3>${currentMember ? '<button onclick="addOffice()">+ Amt</button>' : ''}</div>
+        <div id="officesList"></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Kategorien</h3>
+      <div id="categoryChips"></div>
+      ${currentMember ? '<button style="margin-top:8px" onclick="addCategoryToMember()">+ Kategorie</button>' : '<p class="muted">Nach dem ersten Speichern verfügbar.</p>'}
+    </div>
+    <div class="detail-section">
+      <h3>Familien-/Mitgliedsbeziehungen</h3>
+      <p class="muted">Siehe Reiter "Persönliche Daten", Sektion "Familienzugehörigkeit".</p>
+    </div>
+  `;
+}
+
+function renderPaymentTab() {
+  const m = currentMember || {};
+  const pay = m.paymentDetails || {};
+  return `
+    <div class="detail-section">
+      <h3>Bankverbindung</h3>
+      <div class="grid2">
+        ${fieldHtml('IBAN', 'pay_iban', pay.iban)}
+        ${fieldHtml('BIC', 'pay_bic', pay.bic)}
+        ${fieldHtml('Konto (Alt)', 'pay_accountNumber', pay.account_number)}
+        ${fieldHtml('BLZ (Alt)', 'pay_bankCode', pay.bank_code)}
+        ${fieldHtml('Bankname', 'pay_bankName', pay.bank_name)}
+        ${fieldHtml('Kontoinhaber', 'pay_accountHolder', pay.account_holder)}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>SEPA</h3>
+      <div class="grid2">
+        ${fieldHtml('Mandatsreferenz', 'pay_mandateReference', pay.mandate_reference)}
+        ${fieldHtml('Mandatsdatum', 'pay_mandateDate', pay.mandate_date, { type: 'date' })}
+        ${fieldHtml('Mandatsstatus', 'pay_mandateStatus', pay.mandate_status)}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Zahlart / Zahlungsintervall</h3>
+      <div class="grid2">
+        ${fieldHtml('Zahlart', 'pay_paymentMethod', pay.payment_method, { options: [{ value: '', label: '–' }, { value: 'Bankeinzug', label: 'Bankeinzug' }, { value: 'Überweisung', label: 'Überweisung' }, { value: 'Bar', label: 'Bar' }, { value: 'Sonstiges', label: 'Sonstiges' }] })}
+        ${fieldHtml('Zahlungsintervall', 'pay_paymentInterval', pay.payment_interval, { options: [{ value: '', label: '–' }, { value: 'monatlich', label: 'Monatlich' }, { value: 'vierteljährlich', label: 'Vierteljährlich' }, { value: 'halbjährlich', label: 'Halbjährlich' }, { value: 'jährlich', label: 'Jährlich' }] })}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Zahlungstermin</h3>
+      <div class="grid2">
+        ${fieldHtml('Zahlungstag', 'pay_paymentDay', pay.payment_day, { type: 'number' })}
+        ${fieldHtml('Fällig nach Tagen', 'pay_dueAfterDays', pay.due_after_days, { type: 'number' })}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Zahler</h3>
+      <div class="field"><label>Zahler für dieses Mitglied</label>${linkedMemberFieldPayer()}</div>
+      <div class="field"><label>Für wen ich selbst Zahler bin</label><div class="ro-value">${(m.payees || []).map(x => memberChipHtml(x)).join(' ') || '–'}</div></div>
+    </div>
+    <div class="detail-section">
+      <h3>Nächste Buchung</h3>
+      ${fieldHtml('Hinweis', 'pay_nextBookingNote', pay.next_booking_note)}
+    </div>
+    <div class="detail-section">
+      <h3>Beiträge</h3>
+      <div class="toolbar"><span></span>${currentMember ? '<button onclick="addFee()">+ Fälligkeit</button>' : ''}</div>
+      <div id="feesList"></div>
+      <p class="muted" style="margin-top:10px">Alt-Felder aus Sage (Bedeutung noch nicht abschließend geklärt, unverändert mitgeführt):</p>
+      <div class="grid2">
+        ${fieldHtml('Beitragssatz', 'pay_legacyFeeRateLabel', pay.legacy_fee_rate_label)}
+        ${fieldHtml('Bez.-Beitrag01', 'pay_legacyFeeLabel1', pay.legacy_fee_label_1)}
+        ${fieldHtml('Bez.-Beitrag02', 'pay_legacyFeeLabel2', pay.legacy_fee_label_2)}
+        ${fieldHtml('Bez.-Beitrag03', 'pay_legacyFeeLabel3', pay.legacy_fee_label_3)}
+        ${fieldHtml('Bez.-Beitrag04', 'pay_legacyFeeLabel4', pay.legacy_fee_label_4)}
+      </div>
+    </div>
+  `;
+}
+
+function renderOtherTab() {
+  const m = currentMember || {};
+  return `
+    <div class="detail-section">
+      <h3>Zusatzdaten</h3>
+      <p class="placeholder-note">Die genauen Sage-Felder sind noch nicht bekannt. Sobald Screenshots des Sage-Reiters "Zusatzdaten" vorliegen, werden die echten Felder hier ergänzt.</p>
+    </div>
+    <div class="detail-section">
+      <h3>Bild</h3>
+      <div id="photoSection"></div>
+    </div>
+    <div class="detail-section">
+      <h3>Postanschrift</h3>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:10px">
+          <input type="checkbox" id="oth_mailingAddressEnabled" ${mailingAddressEnabled ? 'checked' : ''} onchange="toggleMailingAddress()" ${detailEditMode ? '' : 'disabled'} style="width:18px;height:18px">
+          Abweichende Postanschrift
+        </label>
+      </div>
+      <div id="mailingAddressFields"></div>
+    </div>
+    <div class="detail-section">
+      <h3>Bemerkungen</h3>
+      ${fieldHtml('Bemerkungen', 'oth_notes', m.notes, { textarea: true })}
+    </div>
+    <div class="detail-section">
+      <h3>Leistungen</h3>
+      <div class="toolbar"><span></span>${currentMember ? '<button onclick="addService()">+ Leistung</button>' : ''}</div>
+      <div id="servicesList"></div>
+    </div>
+    <div class="detail-section">
+      <h3>Ehrungen</h3>
+      <div class="toolbar"><span></span>${currentMember ? '<button onclick="addHonor()">+ Ehrung</button>' : ''}</div>
+      <div id="honorsList"></div>
+    </div>
+    <div class="detail-section">
+      <h3>Eigene Felder</h3>
+      <div class="toolbar"><span></span>${currentMember ? '<button onclick="addCustomField()">+ Feld</button>' : ''}</div>
+      <div id="customFieldsList"></div>
+    </div>
+    <div class="detail-section">
+      <h3>Anwesenheit</h3>
+      <p class="placeholder-note">Anwesenheitserfassung ist in dieser Version noch nicht umgesetzt.</p>
+    </div>
+  `;
+}
+
+// Baut den vollstaendigen POST-'member'-Body aus DOM (Bearbeitungsmodus,
+// per val()) bzw. zwischengespeichertem currentMember (Lesemodus/nicht
+// gerenderte Felder) zusammen - sowohl fuer den regulaeren "Speichern"-
+// Klick als auch fuer Schnellaktionen (Austritt erfassen, Deaktivieren),
+// die NICHT im Bearbeiten-Modus laufen und deshalb ausschliesslich auf
+// currentMember zurueckfallen. Ohne dieses Zusammenspiel wuerden
+// Schnellaktionen sonst alle nicht-editierbaren Felder mit undefined/null
+// ueberschreiben (siehe CLAUDE.md).
+function buildFullMemberBody(overrides = {}) {
+  const m = currentMember || {};
+  const pd = m.personalDetails || {};
+  const pay = m.paymentDetails || {};
+  const ma = m.mailingAddress || {};
+  return {
+    playerId: currentPlayerId || undefined,
+    salutation: val('pd_salutation', m.salutation),
+    firstName: val('pd_firstName', m.first_name),
+    lastName: val('pd_lastName', m.last_name),
+    street: val('pd_street', m.street),
+    houseNumber: val('pd_houseNumber', m.house_number),
+    postalCode: val('pd_postalCode', m.postal_code),
+    city: val('pd_city', m.city),
+    email: val('pd_email', m.email),
+    phone: val('pd_phone', m.phone),
+    mobilePhone: val('pd_mobilePhone', m.mobile_phone),
+    gender: val('pd_gender', m.gender) || undefined,
+    birthDate: val('pd_birthDate', m.birth_date) || undefined,
+    teamIds: getSelectedTeamIds(),
+    membershipNumber: val('mv_membershipNumber', m.membership_number),
+    membershipTypeId: val('mv_membershipType', m.membership_type_id) || undefined,
+    status: val('mv_status', m.status || 'ACTIVE'),
+    joinedAt: val('mv_joinedAt', m.joined_at) || undefined,
+    leftAt: val('mv_leftAt', m.left_at) || undefined,
+    exitReason: val('mv_exitReason', m.exit_reason),
+    notes: val('oth_notes', m.notes),
+    syncOutlook: val('pd_syncOutlook', !!m.sync_outlook),
+    doNotDun: val('pd_doNotDun', !!m.do_not_dun),
+    familyHeadPlayerId: (detailEditMode ? selFamilyHeadId : m.family_head_player_id) || undefined,
+    payerPlayerId: (detailEditMode ? selPayerId : m.payer_player_id) || undefined,
+    supervisorPlayerId: (detailEditMode ? selSupervisorId : m.supervisor_player_id) || undefined,
+    personalDetails: {
+      title: val('pd_title', pd.title),
+      nameSuffix: val('pd_nameSuffix', pd.name_suffix),
+      maritalStatus: val('pd_maritalStatus', pd.marital_status),
+      debtorNumber: val('pd_debtorNumber', pd.debtor_number),
+      birthPlace: val('pd_birthPlace', pd.birth_place),
+      fax: val('pd_fax', pd.fax),
+      website: val('pd_website', pd.website),
+      country: val('pd_country', pd.country),
+    },
+    paymentDetails: {
+      iban: val('pay_iban', pay.iban),
+      bic: val('pay_bic', pay.bic),
+      accountNumber: val('pay_accountNumber', pay.account_number),
+      bankCode: val('pay_bankCode', pay.bank_code),
+      bankName: val('pay_bankName', pay.bank_name),
+      accountHolder: val('pay_accountHolder', pay.account_holder),
+      mandateReference: val('pay_mandateReference', pay.mandate_reference),
+      mandateDate: val('pay_mandateDate', pay.mandate_date) || undefined,
+      mandateStatus: val('pay_mandateStatus', pay.mandate_status),
+      paymentMethod: val('pay_paymentMethod', pay.payment_method),
+      paymentInterval: val('pay_paymentInterval', pay.payment_interval),
+      paymentDay: val('pay_paymentDay', pay.payment_day) || undefined,
+      dueAfterDays: val('pay_dueAfterDays', pay.due_after_days) || undefined,
+      nextBookingNote: val('pay_nextBookingNote', pay.next_booking_note),
+      legacyFeeRateLabel: val('pay_legacyFeeRateLabel', pay.legacy_fee_rate_label),
+      legacyFeeLabel1: val('pay_legacyFeeLabel1', pay.legacy_fee_label_1),
+      legacyFeeLabel2: val('pay_legacyFeeLabel2', pay.legacy_fee_label_2),
+      legacyFeeLabel3: val('pay_legacyFeeLabel3', pay.legacy_fee_label_3),
+      legacyFeeLabel4: val('pay_legacyFeeLabel4', pay.legacy_fee_label_4),
+    },
+    mailingAddress: mailingAddressEnabled ? {
+      recipient: val('ma_recipient', ma.recipient),
+      street: val('ma_street', ma.street),
+      houseNumber: val('ma_houseNumber', ma.house_number),
+      postalCode: val('ma_postalCode', ma.postal_code),
+      city: val('ma_city', ma.city),
+      country: val('ma_country', ma.country),
+    } : null,
+    ...overrides,
+  };
 }
 
 // ── Ämter ──────────────────────────────────────────────────────────────
@@ -411,11 +1441,16 @@ function renderOffices(offices) {
     </div>
   `).join('') || '<div class="muted">Keine Ämter hinterlegt.</div>';
 }
-async function addOffice() {
-  const title = prompt('Bezeichnung des Amts (z.B. Trainer, Vorstand):');
-  if (!title) return;
-  await api('office', { method: 'POST', body: { playerId: currentPlayerId, title } });
-  await openMemberForm(currentPlayerId);
+function addOffice() {
+  openModal('Amt hinzufügen', [
+    { id: 'title', label: 'Bezeichnung (z.B. Trainer, Vorstand)' },
+    { id: 'validFrom', label: 'Gültig ab', type: 'date' },
+    { id: 'validUntil', label: 'Gültig bis', type: 'date' },
+  ], async v => {
+    if (!v.title.trim()) throw new Error('Bezeichnung erforderlich');
+    await api('office', { method: 'POST', body: { playerId: currentPlayerId, title: v.title.trim(), validFrom: v.validFrom, validUntil: v.validUntil } });
+    await openMemberForm(currentPlayerId);
+  });
 }
 async function deleteOffice(id) {
   if (!confirm('Amt wirklich löschen?')) return;
@@ -435,14 +1470,18 @@ function renderGuardians(guardians) {
     </div>
   `).join('') || '<div class="muted">Keine Erziehungsberechtigten hinterlegt.</div>';
 }
-async function addGuardian() {
-  const firstName = prompt('Vorname:');
-  if (!firstName) return;
-  const lastName = prompt('Nachname:');
-  if (!lastName) return;
-  const relationship = prompt('Beziehung (z.B. Mutter, Vater):') || '';
-  await api('guardian', { method: 'POST', body: { playerId: currentPlayerId, firstName, lastName, relationship } });
-  await openMemberForm(currentPlayerId);
+function addGuardian() {
+  openModal('Erziehungsberechtigte Person hinzufügen', [
+    { id: 'firstName', label: 'Vorname' },
+    { id: 'lastName', label: 'Nachname' },
+    { id: 'relationship', label: 'Beziehung (z.B. Mutter, Vater)' },
+    { id: 'email', label: 'E-Mail', type: 'email' },
+    { id: 'phone', label: 'Telefon' },
+  ], async v => {
+    if (!v.firstName.trim() || !v.lastName.trim()) throw new Error('Vor- und Nachname erforderlich');
+    await api('guardian', { method: 'POST', body: { playerId: currentPlayerId, ...v } });
+    await openMemberForm(currentPlayerId);
+  });
 }
 async function deleteGuardian(id) {
   if (!confirm('Person wirklich löschen?')) return;
@@ -466,19 +1505,25 @@ function renderFees(fees) {
     </div>
   `).join('') || '<div class="muted">Keine Beitragsfälligkeiten hinterlegt.</div>';
 }
-async function addFee() {
-  const year = prompt('Jahr:', new Date().getFullYear());
-  if (!year) return;
-  const amountDue = prompt('Betrag (€):');
-  if (!amountDue) return;
-  const dueDate = prompt('Fälligkeitsdatum (JJJJ-MM-TT):');
-  if (!dueDate) return;
-  await api('fee', { method: 'POST', body: { playerId: currentPlayerId, year, amountDue, dueDate } });
-  await openMemberForm(currentPlayerId);
+function addFee() {
+  openModal('Beitragsfälligkeit hinzufügen', [
+    { id: 'year', label: 'Jahr', type: 'number', value: new Date().getFullYear() },
+    { id: 'amountDue', label: 'Betrag (€)', type: 'number' },
+    { id: 'dueDate', label: 'Fälligkeitsdatum', type: 'date' },
+  ], async v => {
+    if (!v.year || !v.amountDue || !v.dueDate) throw new Error('Alle Felder erforderlich');
+    await api('fee', { method: 'POST', body: { playerId: currentPlayerId, ...v } });
+    await openMemberForm(currentPlayerId);
+  });
 }
-async function markFeePaid(id) {
-  await api('fee', { method: 'POST', body: { id, playerId: currentPlayerId, status: 'PAID', paidAt: new Date().toISOString().slice(0,10), amountDue: feeAmount(id), dueDate: feeDueDate(id) } });
-  await openMemberForm(currentPlayerId);
+function markFeePaid(id) {
+  openModal('Fälligkeit als bezahlt markieren', [
+    { id: 'paidAt', label: 'Bezahlt am', type: 'date', value: new Date().toISOString().slice(0, 10) },
+    { id: 'paymentMethod', label: 'Zahlungsart (optional)' },
+  ], async v => {
+    await api('fee', { method: 'POST', body: { id, playerId: currentPlayerId, status: 'PAID', paidAt: v.paidAt, paymentMethod: v.paymentMethod, amountDue: feeAmount(id), dueDate: feeDueDate(id) } });
+    await openMemberForm(currentPlayerId);
+  });
 }
 let lastFees = [];
 function feeAmount(id) { const f = lastFees.find(x => x.id === id); return f ? f.amount_due : 0; }
@@ -487,6 +1532,56 @@ async function deleteFee(id) {
   if (!confirm('Fälligkeit wirklich löschen?')) return;
   await api('fee-delete', { method: 'POST', body: { id } });
   await openMemberForm(currentPlayerId);
+}
+
+// ── Abteilungen/Teams ─────────────────────────────────────────────────
+async function loadDepartments() {
+  teams = await api('teams');
+  const nodes = flattenTeamTree(teams);
+  document.getElementById('teamsTree').innerHTML = nodes.map(t => `
+    <div class="team-node depth-${t.depth}" style="padding-left:${t.depth * 18}px">
+      <span class="name">${escapeHtml(t.name)}${t.active ? '' : ' <span class=\"muted\">(inaktiv)</span>'}</span>
+      <span class="team-node-actions">
+        <button onclick="addTeamNode(${t.id})">+ Unterteam</button>
+        <button class="link" onclick="editTeamNode(${t.id})">Bearbeiten</button>
+        <button class="danger" onclick="deleteTeamNode(${t.id})">Löschen</button>
+      </span>
+    </div>
+  `).join('') || '<p class="muted">Noch keine Abteilungen angelegt.</p>';
+}
+function addTeamNode(parentId) {
+  openModal(parentId ? 'Team/Untergruppe anlegen' : 'Abteilung anlegen', [
+    { id: 'name', label: 'Name' },
+  ], async v => {
+    if (!v.name.trim()) throw new Error('Name erforderlich');
+    await api('team', { method: 'POST', body: { name: v.name.trim(), parentId: parentId || undefined } });
+    await loadDepartments();
+    teams = await api('teams');
+  });
+}
+function editTeamNode(id) {
+  const node = teams.find(t => t.id === id);
+  if (!node) return;
+  const excluded = new Set([id, ...getDescendantIds(teams, id)]);
+  const parentOptions = [
+    { value: '', label: '– (oberste Ebene / Abteilung)' },
+    ...flattenTeamTree(teams).filter(t => !excluded.has(t.id)).map(t => ({ value: t.id, label: '  '.repeat(t.depth) + t.name })),
+  ];
+  openModal('Abteilung/Team bearbeiten', [
+    { id: 'name', label: 'Name', value: node.name },
+    { id: 'parentId', label: 'Übergeordnet', type: 'select', value: node.parent_id || '', options: parentOptions },
+    { id: 'active', label: 'Aktiv', type: 'checkbox', value: !!node.active },
+  ], async v => {
+    if (!v.name.trim()) throw new Error('Name erforderlich');
+    await api('team', { method: 'POST', body: { id, name: v.name.trim(), parentId: v.parentId || undefined, active: v.active } });
+    await loadDepartments();
+  });
+}
+async function deleteTeamNode(id) {
+  if (!confirm('Diese Abteilung/dieses Team löschen? Alle Unterteams werden mitgelöscht.')) return;
+  await api('team-delete', { method: 'POST', body: { id } });
+  await loadDepartments();
+  teams = await api('teams');
 }
 
 // ── Beitragsklassen ──────────────────────────────────────────────────
@@ -505,14 +1600,21 @@ async function loadTypes() {
 function intervalLabel(i) {
   return { YEARLY: 'Jährlich', HALF_YEARLY: 'Halbjährlich', QUARTERLY: 'Quartalsweise', MONTHLY: 'Monatlich' }[i] || i;
 }
-async function openTypeForm(id) {
+function openTypeForm(id) {
   const existing = id ? membershipTypes.find(t => t.id === id) : null;
-  const name = prompt('Name der Beitragsklasse:', existing?.name || '');
-  if (!name) return;
-  const annualFee = prompt('Jahresbeitrag (€):', existing?.annual_fee || '0');
-  if (annualFee === null) return;
-  await api('membership-type', { method: 'POST', body: { id, name, annualFee, billingInterval: existing?.billing_interval || 'YEARLY' } });
-  await loadTypes();
+  openModal(id ? 'Beitragsklasse bearbeiten' : 'Neue Beitragsklasse', [
+    { id: 'name', label: 'Name', value: existing?.name || '' },
+    { id: 'annualFee', label: 'Jahresbeitrag (€)', type: 'number', value: existing?.annual_fee ?? '' },
+    { id: 'billingInterval', label: 'Intervall', type: 'select', value: existing?.billing_interval || 'YEARLY', options: [
+      { value: 'YEARLY', label: 'Jährlich' }, { value: 'HALF_YEARLY', label: 'Halbjährlich' },
+      { value: 'QUARTERLY', label: 'Quartalsweise' }, { value: 'MONTHLY', label: 'Monatlich' },
+    ] },
+    { id: 'active', label: 'Aktiv', type: 'checkbox', value: existing ? !!existing.active : true },
+  ], async v => {
+    if (!v.name.trim() || !v.annualFee) throw new Error('Name und Jahresbeitrag erforderlich');
+    await api('membership-type', { method: 'POST', body: { id, name: v.name.trim(), annualFee: v.annualFee, billingInterval: v.billingInterval, active: v.active } });
+    await loadTypes();
+  });
 }
 
 async function generateFees() {
