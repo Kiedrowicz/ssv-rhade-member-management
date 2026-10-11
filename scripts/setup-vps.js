@@ -243,6 +243,10 @@ console.log('\n✓ Alle Dateien hochgeladen\n');
 console.log('Zentralen Caddy (neu) starten, damit die neue Route greift…\n');
 const conn2 = await openSSH(PASS);
 await run(conn2, `cd ${CADDY_DIR} && docker compose up -d 2>&1`, { stream: true });
+// "up -d" startet Caddy nicht neu, wenn sich am Container nichts geaendert
+// hat - eine neue Route in der Caddyfile wuerde dann nie geladen (erstes
+// Launchpad-Deployment 2026-10-12: kein Zertifikat, bis manuell neu geladen).
+await run(conn2, `cd ${CADDY_DIR} && docker compose exec -T $(docker compose ps --services | head -1) caddy reload --config /etc/caddy/Caddyfile 2>&1`, { stream: true });
 
 console.log('\nContainer member-management starten (erstes Mal 1-2 Minuten, bitte warten)…\n');
 await run(conn2, `cd ${REMOTE_DIR} && docker compose up -d --build 2>&1`, { stream: true });
