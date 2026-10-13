@@ -20,6 +20,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD muss gesetzt sein, siehe scripts/grant-db-user.sql}
       SHARED_DB_NAME: ssv_shared_members
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss gesetzt sein}
+      IBAN_ENCRYPTION_KEY: ${IBAN_ENCRYPTION_KEY:?IBAN_ENCRYPTION_KEY muss gesetzt sein, siehe .env.example}
     networks:
       - default
       - ssv-shared

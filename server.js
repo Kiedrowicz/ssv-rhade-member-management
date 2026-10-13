@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { createSelfServiceRouter } from './self-service.js';
 import { createRetentionRouter } from './retention.js';
+import { initFieldCrypto, encryptField, decryptPaymentRow, prepareEncryptedPaymentDetails } from './field-crypto.js';
 
 // override: true, weil travel-expenses lokal dieselben Variablennamen
 // (DB_USER, DB_PASSWORD, ...) bereits als Shell-/System-Umgebungsvariablen
@@ -404,7 +405,8 @@ app.get('/api', async (req, res) => {
         const teams = teamRows.map(t => ({ id: t.id, name: t.name, path: teamPath(allTeams, t.id) }));
 
         const [[personalDetails]] = await pool.query('SELECT * FROM member_personal_details WHERE player_id = ?', [playerId]);
-        const [[paymentDetails]] = await pool.query('SELECT * FROM member_payment_details WHERE player_id = ?', [playerId]);
+        const [[paymentRow]] = await pool.query('SELECT * FROM member_payment_details WHERE player_id = ?', [playerId]);
+        const paymentDetails = decryptPaymentRow(paymentRow);
         const [[mailingAddress]] = await pool.query('SELECT * FROM member_mailing_address WHERE player_id = ?', [playerId]);
         const [[photoRow]] = await pool.query('SELECT player_id FROM member_photos WHERE player_id = ?', [playerId]);
         const [honors] = await pool.query('SELECT * FROM member_honors WHERE player_id = ? ORDER BY honor_date DESC', [playerId]);
@@ -630,7 +632,7 @@ app.post('/api', async (req, res) => {
                legacy_fee_rate_label=VALUES(legacy_fee_rate_label), legacy_fee_label_1=VALUES(legacy_fee_label_1),
                legacy_fee_label_2=VALUES(legacy_fee_label_2), legacy_fee_label_3=VALUES(legacy_fee_label_3),
                legacy_fee_label_4=VALUES(legacy_fee_label_4)`,
-            [resolvedPlayerId, paymentDetails.iban || null, paymentDetails.bic || null, paymentDetails.accountNumber || null,
+            [resolvedPlayerId, encryptField(paymentDetails.iban), paymentDetails.bic || null, encryptField(paymentDetails.accountNumber),
              paymentDetails.bankCode || null, paymentDetails.bankName || null, paymentDetails.accountHolder || null,
              paymentDetails.mandateReference || null, paymentDetails.mandateDate || null, paymentDetails.mandateStatus || null,
              paymentDetails.paymentMethod || null, paymentDetails.paymentInterval || null, paymentDetails.paymentDay || null,
@@ -1031,6 +1033,8 @@ async function runSchemaMigrations() {
 }
 
 async function start() {
+  // Ohne Schluessel gar nicht erst starten - sonst landeten neue IBANs im Klartext
+  initFieldCrypto(process.env.IBAN_ENCRYPTION_KEY);
   for (let attempt = 1; attempt <= 10; attempt++) {
     try {
       await pool.query('SELECT 1');
@@ -1042,6 +1046,7 @@ async function start() {
     }
   }
   await runSchemaMigrations();
+  await prepareEncryptedPaymentDetails(pool);
   await ensureAdminAccount();
   await warnIfFootballDepartmentMissing();
   app.listen(PORT, () => console.log(`Mitgliederverwaltung laeuft auf Port ${PORT}`));
