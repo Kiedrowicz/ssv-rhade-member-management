@@ -155,11 +155,14 @@ const EFFECTIVE_STATUS_SQL = `
 // im normalen Tagesbetrieb trotzdem unter "Aktiv" auftauchen (nur mit
 // Hinweis-Badge), sonst waere er im Alltag ploetzlich nicht mehr
 // auffindbar. Nur "Ausgetreten" schliesst tatsaechlich aus dem
-// Aktiv/Ruhend-Filter aus.
+// Aktiv/Ruhend-Filter aus - und zwar auch dann, wenn left_at erreicht ist,
+// der Status aber noch ACTIVE/PAUSED lautet (Kuendigungen setzen nur left_at,
+// auf TERMINATED stellt erst die Aufbewahrung Stufe 1 nach der Karenzzeit um).
+const NOT_YET_LEFT_SQL = `(m.left_at IS NULL OR m.left_at > CURDATE())`;
 function statusFilterSql(status) {
   switch (status) {
-    case 'ACTIVE': return `m.status = 'ACTIVE'`;
-    case 'PAUSED': return `m.status = 'PAUSED'`;
+    case 'ACTIVE': return `m.status = 'ACTIVE' AND ${NOT_YET_LEFT_SQL}`;
+    case 'PAUSED': return `m.status = 'PAUSED' AND ${NOT_YET_LEFT_SQL}`;
     case 'PENDING': return `m.status <> 'TERMINATED' AND m.left_at IS NOT NULL AND m.left_at > CURDATE()`;
     case 'TERMINATED': return `(m.status = 'TERMINATED' OR (m.left_at IS NOT NULL AND m.left_at <= CURDATE()))`;
     default: return null;
