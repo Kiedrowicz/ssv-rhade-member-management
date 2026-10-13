@@ -231,9 +231,9 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.member_personal_details (
 -- CLAUDE.md).
 CREATE TABLE IF NOT EXISTS ssv_member_management.member_payment_details (
   player_id             INT UNSIGNED PRIMARY KEY,
-  iban                  VARCHAR(34) DEFAULT NULL,
+  iban                  VARCHAR(255) DEFAULT NULL,  -- verschluesselt (enc:v1:..., field-crypto.js)
   bic                   VARCHAR(11) DEFAULT NULL,
-  account_number        VARCHAR(30) DEFAULT NULL,
+  account_number        VARCHAR(255) DEFAULT NULL,  -- verschluesselt (enc:v1:..., field-crypto.js)
   bank_code             VARCHAR(30) DEFAULT NULL,
   bank_name             VARCHAR(150) DEFAULT NULL,
   account_holder        VARCHAR(150) DEFAULT NULL,
@@ -472,3 +472,11 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.member_archive_honors (
   honor_date  DATE DEFAULT NULL,
   INDEX idx_archive_honors_person (person_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Bankdaten-Verschluesselung (Entscheidung 2026-10-13, field-crypto.js):
+-- verschluesselte Werte ("enc:v1:" + Base64 aus IV/Tag/Chiffrat) sind
+-- laenger als eine IBAN. Bestehende Installationen hier verbreitern, die
+-- Altwerte verschluesselt server.js beim Start (prepareEncryptedPaymentDetails).
+ALTER TABLE ssv_member_management.member_payment_details
+  MODIFY iban VARCHAR(255) DEFAULT NULL,
+  MODIFY account_number VARCHAR(255) DEFAULT NULL;
