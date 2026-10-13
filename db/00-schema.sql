@@ -480,3 +480,15 @@ CREATE TABLE IF NOT EXISTS ssv_member_management.member_archive_honors (
 ALTER TABLE ssv_member_management.member_payment_details
   MODIFY iban VARCHAR(255) DEFAULT NULL,
   MODIFY account_number VARCHAR(255) DEFAULT NULL;
+
+-- legacy_fee_label_1..4 reichten beim GS-VEREIN-Vollimport (2026-10-13) nicht
+-- aus - der Export hat 10 Beitragssatz-/Bez.-Beitrag-Paare, nicht 4. Additiv
+-- wie legacy_fee_rate_label/legacy_fee_label_1..4 (siehe Tabellenkommentar
+-- oben): aus Sage uebernommen, bewusst nicht interpretiert, nur mitgefuehrt.
+ALTER TABLE ssv_member_management.member_payment_details
+  ADD COLUMN IF NOT EXISTS legacy_fee_label_5  VARCHAR(150) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS legacy_fee_label_6  VARCHAR(150) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS legacy_fee_label_7  VARCHAR(150) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS legacy_fee_label_8  VARCHAR(150) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS legacy_fee_label_9  VARCHAR(150) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS legacy_fee_label_10 VARCHAR(150) DEFAULT NULL;
