@@ -135,6 +135,7 @@ const PROD_COMPOSE = `services:
       DB_PASSWORD: \${DB_PASSWORD}
       SHARED_DB_NAME: ssv_shared_members
       JWT_SECRET: \${JWT_SECRET}
+      IBAN_ENCRYPTION_KEY: \${IBAN_ENCRYPTION_KEY}
       NODE_ENV: production
     networks:
       - default
@@ -156,6 +157,13 @@ function buildProdEnv() {
     console.error('VPS_DB_PASSWORD fehlt in .env (Passwort des ssv_members-Users auf dem VPS, siehe scripts/grant-db-user.sql dort)');
     process.exit(1);
   }
+  // Schluessel der Bankdaten-Verschluesselung (field-crypto.js). Muss bei
+  // JEDEM Deploy derselbe bleiben - ein neuer Wert macht alle gespeicherten
+  // IBANs unlesbar (der Server bricht dann den Start ab, statt weiterzulaufen).
+  if (!env['VPS_IBAN_ENCRYPTION_KEY'] || env['VPS_IBAN_ENCRYPTION_KEY'].length < 32) {
+    console.error('VPS_IBAN_ENCRYPTION_KEY fehlt oder ist zu kurz in .env (siehe .env.example) - ohne ihn startet die Mitgliederverwaltung nicht');
+    process.exit(1);
+  }
   return `# Datenbank - kein eigener Container, verbindet sich mit dem
 # travel-expenses-MariaDB-Container im gemeinsamen Docker-Netzwerk.
 # ssv_member_management + User ssv_members muessen dafuer vorher einmalig
@@ -164,6 +172,10 @@ DB_PASSWORD=${env['VPS_DB_PASSWORD']}
 
 # Session-Token
 JWT_SECRET=${env['VPS_JWT_SECRET'] || 'change-me'}
+
+# Bankdaten-Verschluesselung (IBAN/Kontonummer) - NICHT ersetzbar, liegt
+# zusaetzlich in den Notfall-Zugangsdaten des Vereins
+IBAN_ENCRYPTION_KEY=${env['VPS_IBAN_ENCRYPTION_KEY']}
 `;
 }
 
@@ -173,6 +185,7 @@ const files = [
   ['server.js',              `${REMOTE_DIR}/server.js`],
   ['self-service.js',        `${REMOTE_DIR}/self-service.js`],
   ['retention.js',           `${REMOTE_DIR}/retention.js`],
+  ['field-crypto.js',        `${REMOTE_DIR}/field-crypto.js`],
   ['app/index.html',         `${REMOTE_DIR}/app/index.html`],
   ['app/assets/ssv-rhade-logo.png', `${REMOTE_DIR}/app/assets/ssv-rhade-logo.png`],
   ['db/00-schema.sql',       `${REMOTE_DIR}/db/00-schema.sql`],

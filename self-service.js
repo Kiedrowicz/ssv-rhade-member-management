@@ -18,6 +18,7 @@
 // - Austritt setzt left_at auf den vom Launchpad berechneten Termin; die
 //   Mitgliedschaft bleibt bis dahin ACTIVE. Ruecknahme loescht ihn wieder.
 import express from 'express';
+import { encryptField, decryptPaymentRow } from './field-crypto.js';
 
 export const CONSENT_TYPES = ['CONTACT_SHARING', 'MEDIA'];
 const ADULT_AGE = 18;
@@ -119,10 +120,11 @@ export function createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, w
                 email, phone, mobile_phone FROM ${SHARED_DB}.players WHERE id = ?`, [playerId]
       );
       if (!p) return fail(res, 'Person nicht gefunden', 404);
-      const [[pay]] = await pool.query(
+      const [[payRow]] = await pool.query(
         'SELECT iban, bic, account_holder, mandate_reference, mandate_date, mandate_confirmed_online_at FROM member_payment_details WHERE player_id = ?',
         [playerId]
       );
+      const pay = decryptPaymentRow(payRow);
       const [[m]] = await pool.query(
         `SELECT m.status, m.joined_at, m.left_at, m.membership_number, m.termination_requested_at, m.termination_source,
                 t.name AS type_name
@@ -189,13 +191,14 @@ export function createSelfServiceRouter({ pool, SHARED_DB, authenticate, fail, w
       if (bic && !/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic)) return fail(res, 'Ungültige BIC');
       if (!accountHolder) return fail(res, 'Kontoinhaber ist eine Pflichtangabe');
       if (req.body.mandateAccepted !== true) return fail(res, 'Bitte das SEPA-Lastschriftmandat bestätigen');
-      const [[before]] = await pool.query('SELECT iban, bic, account_holder FROM member_payment_details WHERE player_id = ?', [playerId]);
+      const [[beforeRow]] = await pool.query('SELECT iban, bic, account_holder FROM member_payment_details WHERE player_id = ?', [playerId]);
+      const before = decryptPaymentRow(beforeRow);
       await pool.query(
         `INSERT INTO member_payment_details (player_id, iban, bic, account_holder, mandate_confirmed_online_at)
          VALUES (?, ?, ?, ?, NOW())
          ON DUPLICATE KEY UPDATE iban = VALUES(iban), bic = VALUES(bic), account_holder = VALUES(account_holder),
            mandate_confirmed_online_at = NOW()`,
-        [playerId, iban, bic, accountHolder]
+        [playerId, encryptField(iban), bic, accountHolder]
       );
       // IBAN nie im Klartext ins Protokoll (Datenminimierung, Entscheidung
       // 2026-10-10): Aenderung am echten Wert erkennen, aber maskiert speichern

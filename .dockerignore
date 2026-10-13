@@ -9,6 +9,7 @@ db
 !server.js
 !self-service.js
 !retention.js
+!field-crypto.js
 !package.json
 !package-lock.json
 !db/00-schema.sql
