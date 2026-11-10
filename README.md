@@ -1,5 +1,12 @@
 # SSV Rhade – Mitgliederverwaltung
 
+> **Abgeschaltet seit 10.11.2026.** Die Mitgliederverwaltung ist jetzt das native
+> Mitglieder-Modul des Launchpads (`ssv-rhade-launchpad/server/modules/members/`).
+> Dieses Repo und `/opt/ssv-member-management` auf dem VPS sind nur noch
+> Rückfallebene. Nicht mehr deployen (`npm run setup-vps` würde die alte App wieder
+> starten). Die Daten liegen unverändert in `ssv_member_management` und
+> `ssv_shared_members`. Ablauf und Rückweg: `ssv-rhade-launchpad/docs/members-umzug.md`.
+
 Eigenständige App für Mitgliederstammdaten, Ämter, Erziehungsberechtigte und
 Beitragsverwaltung (Beitragsklassen, Fälligkeiten, Zahlungsstatus).
 
